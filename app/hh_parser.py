@@ -4,10 +4,10 @@ import time
 from collections.abc import Callable
 from urllib.parse import urlencode
 
-from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -63,7 +63,7 @@ def build_search_url(page: int, config: Settings = settings) -> str:
     return f"{config.base_search_url}?{urlencode(params)}"
 
 
-def build_driver(config: Settings = settings) -> webdriver.Chrome:
+def build_driver(config: Settings = settings) -> ChromeDriver:
     options = Options()
     if config.headless:
         options.add_argument("--headless=new")
@@ -78,8 +78,8 @@ def build_driver(config: Settings = settings) -> webdriver.Chrome:
 
     if config.chromedriver_path:
         service = Service(config.chromedriver_path)
-        return webdriver.Chrome(service=service, options=options)
-    return webdriver.Chrome(options=options)
+        return ChromeDriver(service=service, options=options)
+    return ChromeDriver(options=options)
 
 
 def parse_card(card: SearchableElement) -> Vacancy:
@@ -93,7 +93,7 @@ def parse_card(card: SearchableElement) -> Vacancy:
     return Vacancy(title=title, company=company, url=clean_url(href))
 
 
-def find_search_cards(driver: webdriver.Chrome) -> list[SearchableElement]:
+def find_search_cards(driver: ChromeDriver) -> list[SearchableElement]:
     for selector in SEARCH_CARD_SELECTORS:
         cards = driver.find_elements(By.CSS_SELECTOR, selector)
         if cards:
@@ -119,7 +119,7 @@ def find_search_cards(driver: webdriver.Chrome) -> list[SearchableElement]:
 
 
 def parse_vacancy_details(
-    driver: webdriver.Chrome,
+    driver: ChromeDriver,
     vacancy: Vacancy,
     config: Settings = settings,
     on_status: StatusCallback | None = None,
@@ -148,7 +148,7 @@ def parse_vacancy_details(
 
 
 def parse_search_page(
-    driver: webdriver.Chrome,
+    driver: ChromeDriver,
     page: int,
     config: Settings = settings,
     on_status: StatusCallback | None = None,
@@ -180,7 +180,7 @@ def parse_search_page(
 
 
 def collect_vacancies(
-    driver: webdriver.Chrome,
+    driver: ChromeDriver,
     config: Settings = settings,
     on_status: StatusCallback | None = None,
 ) -> list[Vacancy]:

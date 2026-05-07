@@ -120,7 +120,7 @@ python -m app.main
 python -m venv venv
 venv\Scripts\activate
 python -m pip install -r requirements.txt
-python -m PyInstaller HHParser.spec
+python -m PyInstaller --clean HHParser.spec
 ```
 
 Готовый файл появится в `dist/HHParser.exe`.
@@ -132,8 +132,9 @@ python -m PyInstaller HHParser.spec
 
 Если после обновления Selenium появляется ошибка вида
 `ModuleNotFoundError: No module named 'selenium.webdriver.chrome.webdriver'`,
-пересоберите exe по командам выше: `HHParser.spec` явно включает Chrome-модули
-Selenium, которые импортируются динамически.
+пересоберите exe по командам выше и замените старый файл в `dist/`.
+`HHParser.spec` явно включает Chrome-модули Selenium, которые импортируются
+динамически.
  
 ---
  

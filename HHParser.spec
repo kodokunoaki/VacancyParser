@@ -13,6 +13,7 @@ for package_name in ("pydantic", "pydantic_settings", "selenium"):
     binaries += package_binaries
     hiddenimports += package_hiddenimports
 
+hiddenimports += ["selenium.webdriver.chrome.webdriver"]
 hiddenimports += collect_submodules("selenium.webdriver.chrome")
 hiddenimports += collect_submodules("app")
 

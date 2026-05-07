@@ -67,7 +67,7 @@ def test_build_search_url_uses_settings() -> None:
     assert "page=2" in url
 
 
-@patch("app.hh_parser.webdriver.Chrome")
+@patch("app.hh_parser.ChromeDriver")
 def test_build_driver_uses_selenium_manager_without_chromedriver_path(
     chrome_mock: Mock,
 ) -> None:
@@ -80,7 +80,7 @@ def test_build_driver_uses_selenium_manager_without_chromedriver_path(
     assert "service" not in kwargs
 
 
-@patch("app.hh_parser.webdriver.Chrome")
+@patch("app.hh_parser.ChromeDriver")
 @patch("app.hh_parser.Service")
 def test_build_driver_uses_service_with_chromedriver_path(
     service_mock: Mock,

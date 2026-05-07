@@ -129,6 +129,11 @@ python -m PyInstaller HHParser.spec
 значит сборка была запущена не из того окружения или зависимости не были
 установлены перед сборкой. Удалите папки `build/` и `dist/`, активируйте `venv`,
 выполните команды выше и пересоберите exe.
+
+Если после обновления Selenium появляется ошибка вида
+`ModuleNotFoundError: No module named 'selenium.webdriver.chrome.webdriver'`,
+пересоберите exe по командам выше: `HHParser.spec` явно включает Chrome-модули
+Selenium, которые импортируются динамически.
  
 ---
  

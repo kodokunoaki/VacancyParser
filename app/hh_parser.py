@@ -1,6 +1,7 @@
 import csv
 import random
 import time
+from collections.abc import Callable
 from urllib.parse import urlencode
 
 from selenium import webdriver
@@ -35,6 +36,13 @@ COMPANY_SELECTORS = (
 )
 DESCRIPTION_SELECTORS = ("[data-qa='vacancy-description']",)
 SKILL_SELECTORS = ("[data-qa='skills-element']",)
+StatusCallback = Callable[[str], None]
+
+
+def emit_status(message: str, on_status: StatusCallback | None = None) -> None:
+    print(message)
+    if on_status is not None:
+        on_status(message)
 
 
 def build_search_url(page: int, config: Settings = settings) -> str:
@@ -68,8 +76,10 @@ def build_driver(config: Settings = settings) -> webdriver.Chrome:
     options.add_experimental_option("useAutomationExtension", False)
     options.add_argument(f"user-agent={config.user_agent}")
 
-    service = Service(config.chromedriver_path)
-    return webdriver.Chrome(service=service, options=options)
+    if config.chromedriver_path:
+        service = Service(config.chromedriver_path)
+        return webdriver.Chrome(service=service, options=options)
+    return webdriver.Chrome(options=options)
 
 
 def parse_card(card: SearchableElement) -> Vacancy:
@@ -112,10 +122,12 @@ def parse_vacancy_details(
     driver: webdriver.Chrome,
     vacancy: Vacancy,
     config: Settings = settings,
+    on_status: StatusCallback | None = None,
 ) -> Vacancy:
     if vacancy.url == "—":
         return vacancy
 
+    emit_status(f"  -> Открываю вакансию: {vacancy.title}", on_status)
     driver.get(vacancy.url)
     try:
         WebDriverWait(driver, config.page_timeout).until(
@@ -139,9 +151,10 @@ def parse_search_page(
     driver: webdriver.Chrome,
     page: int,
     config: Settings = settings,
+    on_status: StatusCallback | None = None,
 ) -> tuple[list[Vacancy], bool]:
     url = build_search_url(page, config)
-    print(f"  -> Загрузка страницы {page}: {url}")
+    emit_status(f"  -> Загрузка страницы {page}: {url}", on_status)
     driver.get(url)
 
     try:
@@ -149,43 +162,59 @@ def parse_search_page(
             EC.presence_of_element_located((By.CSS_SELECTOR, TITLE_SELECTOR))
         )
     except TimeoutException:
-        print(f"  x Ссылки вакансий не появились на странице {page}. Завершаем.")
-        print(f"  Текущий URL браузера: {driver.current_url}")
+        emit_status(
+            f"  x Ссылки вакансий не появились на странице {page}. Завершаем.",
+            on_status,
+        )
+        emit_status(f"  Текущий URL браузера: {driver.current_url}", on_status)
         return [], False
 
     cards = find_search_cards(driver)
     vacancies = [vacancy for card in cards if (vacancy := parse_card(card)).url != "—"]
     has_next = bool(driver.find_elements(By.CSS_SELECTOR, "[data-qa='pager-next']"))
-    print(f"  + Собрано вакансий: {len(vacancies)} | Следующая страница: {has_next}")
+    emit_status(
+        f"  + Собрано вакансий: {len(vacancies)} | Следующая страница: {has_next}",
+        on_status,
+    )
     return vacancies, has_next
 
 
 def collect_vacancies(
     driver: webdriver.Chrome,
     config: Settings = settings,
+    on_status: StatusCallback | None = None,
 ) -> list[Vacancy]:
     vacancies: list[Vacancy] = []
     for page in range(config.max_pages):
-        page_vacancies, has_next = parse_search_page(driver, page, config)
+        page_vacancies, has_next = parse_search_page(driver, page, config, on_status)
         for vacancy in page_vacancies:
-            enriched = parse_vacancy_details(driver, vacancy, config)
+            enriched = parse_vacancy_details(driver, vacancy, config, on_status)
             vacancies.append(enriched)
 
             delay = random.uniform(config.delay_min, config.delay_max)
-            print(f"  Пауза перед следующей вакансией: {delay:.1f} сек.")
+            emit_status(
+                f"  Пауза перед следующей вакансией: {delay:.1f} сек.", on_status
+            )
             time.sleep(delay)
 
         if not has_next:
-            print(f"\n  Следующей страницы нет — сбор завершён на странице {page}.")
+            emit_status(
+                f"\n  Следующей страницы нет — сбор завершён на странице {page}.",
+                on_status,
+            )
             break
 
         delay = random.uniform(config.delay_min, config.delay_max)
-        print(f"  Пауза перед следующей страницей: {delay:.1f} сек.")
+        emit_status(f"  Пауза перед следующей страницей: {delay:.1f} сек.", on_status)
         time.sleep(delay)
     return vacancies
 
 
-def save_to_csv(vacancies: list[Vacancy], filename: str) -> None:
+def save_to_csv(
+    vacancies: list[Vacancy],
+    filename: str,
+    on_status: StatusCallback | None = None,
+) -> None:
     field_names = [
         "Вакансия",
         "Компания",
@@ -206,7 +235,10 @@ def save_to_csv(vacancies: list[Vacancy], filename: str) -> None:
                     vacancy.key_skills_text,
                 ]
             )
-    print(f"\nРезультаты сохранены в «{filename}» ({len(vacancies)} вакансий)")
+    emit_status(
+        f"\nРезультаты сохранены в «{filename}» ({len(vacancies)} вакансий)",
+        on_status,
+    )
 
 
 def print_table(vacancies: list[Vacancy]) -> None:

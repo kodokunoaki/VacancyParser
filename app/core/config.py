@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     delay_max: float = 3.2
     page_timeout: int = 30
     headless: bool = True
-    chromedriver_path: str = "/usr/bin/chromedriver"
+    chromedriver_path: str | None = None
     base_search_url: str = "https://hh.ru/search/vacancy"
     user_agent: str = Field(
         default=(

@@ -5,6 +5,7 @@ from selenium.common.exceptions import NoSuchElementException
 from app.core.config import Settings
 from app.core.utils import clean_url, first_text
 from app.hh_parser import (
+    build_driver,
     build_search_url,
     find_search_cards,
     parse_card,
@@ -64,6 +65,35 @@ def test_build_search_url_uses_settings() -> None:
     assert "text=Python+developer" in url
     assert "salary=150000" in url
     assert "page=2" in url
+
+
+@patch("app.hh_parser.webdriver.Chrome")
+def test_build_driver_uses_selenium_manager_without_chromedriver_path(
+    chrome_mock: Mock,
+) -> None:
+    config = Settings(chromedriver_path=None)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    assert "options" in kwargs
+    assert "service" not in kwargs
+
+
+@patch("app.hh_parser.webdriver.Chrome")
+@patch("app.hh_parser.Service")
+def test_build_driver_uses_service_with_chromedriver_path(
+    service_mock: Mock,
+    chrome_mock: Mock,
+) -> None:
+    config = Settings(chromedriver_path="C:/tools/chromedriver.exe")
+
+    build_driver(config)
+
+    service_mock.assert_called_once_with("C:/tools/chromedriver.exe")
+    _, kwargs = chrome_mock.call_args
+    assert kwargs["service"] == service_mock.return_value
+    assert "options" in kwargs
 
 
 def test_parse_card_returns_vacancy_from_search_card() -> None:

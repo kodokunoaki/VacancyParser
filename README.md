@@ -12,7 +12,8 @@
 HHParser/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py               # Точка входа
+│   ├── main.py               # CLI-точка входа
+│   ├── gui.py                # Tkinter GUI
 │   ├── hh_parser.py          # Логика сбора и обогащения вакансий
 │   ├── schemas.py            # Pydantic-схемы данных
 │   └── core/
@@ -33,8 +34,11 @@ HHParser/
 ## Требования
  
 - Python 3.10+
+- Tkinter. На Windows обычно входит в Python. На Linux может понадобиться
+  системный пакет `python3-tk`.
 - Google Chrome или Chromium
-- ChromeDriver (версия совпадает с браузером)
+- ChromeDriver не нужно указывать вручную, если Selenium Manager может подобрать
+  его автоматически. При необходимости путь можно задать через `CHROMEDRIVER_PATH`.
 ---
  
 ## Установка
@@ -59,8 +63,23 @@ cp .env.example .env
  
 ---
  
-## Запуск
- 
+## Запуск GUI
+
+```bash
+python -m app.gui
+```
+
+В окне приложения доступны поля:
+
+- поисковый запрос;
+- зарплата от, в рублях;
+- кнопка запуска поиска;
+- текущий статус и лог выполнения.
+
+---
+
+## Запуск CLI
+
 ```bash
 python -m app.main
 ```
@@ -87,8 +106,21 @@ python -m app.main
 | `DELAY_MAX`      | `4.5`           | Максимальная пауза между запросами (с)|
 | `PAGE_TIMEOUT`   | `30`            | Таймаут ожидания элементов (с)        |
 | `HEADLESS`       | `true`          | Запуск браузера без GUI               |
-| `CHROMEDRIVER_PATH` | `/usr/bin/chromedriver` | Путь к ChromeDriver        |
+| `CHROMEDRIVER_PATH` | пусто | Путь к ChromeDriver. Если пусто, Selenium подбирает драйвер автоматически |
 | `BASE_SEARCH_URL` | `https://hh.ru/search/vacancy` | URL поиска hh.ru      |
+
+---
+
+## Сборка EXE
+
+Для MVP можно собрать Windows-приложение через PyInstaller:
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed --name HHParser app/gui.py
+```
+
+Готовый файл появится в `dist/HHParser.exe`.
  
 ---
  

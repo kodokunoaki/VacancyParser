@@ -113,14 +113,22 @@ python -m app.main
 
 ## Сборка EXE
 
-Для MVP можно собрать Windows-приложение через PyInstaller:
+Собирать exe нужно из активированного виртуального окружения, где установлены
+все зависимости проекта:
 
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name HHParser app/gui.py
+python -m venv venv
+venv\Scripts\activate
+python -m pip install -r requirements.txt
+python -m PyInstaller HHParser.spec
 ```
 
 Готовый файл появится в `dist/HHParser.exe`.
+
+Если exe падает с ошибкой вида `ModuleNotFoundError: No module named 'pydantic'`,
+значит сборка была запущена не из того окружения или зависимости не были
+установлены перед сборкой. Удалите папки `build/` и `dist/`, активируйте `venv`,
+выполните команды выше и пересоберите exe.
  
 ---
  
@@ -152,4 +160,5 @@ pydantic>=2.0.0
 pydantic-settings>=2.0.0
 pytest>=7.0.0
 black>=24.0.0
+pyinstaller>=6.0.0
 ```

@@ -15,6 +15,7 @@ from app.hh_parser import (
     find_search_cards,
     parse_card,
     parse_vacancy_details,
+    wait_for_search_cards,
 )
 from app.schemas import Vacancy
 
@@ -216,6 +217,23 @@ def test_find_search_cards_falls_back_to_title_links() -> None:
     )
 
     assert find_search_cards(driver) == [title_link]
+
+
+@patch("app.hh_parser.WebDriverWait")
+def test_wait_for_search_cards_waits_until_expected_count(wait_mock: Mock) -> None:
+    driver = FakeElement(
+        groups={
+            "[data-qa='vacancy-serp__vacancy']": [
+                FakeElement("Маркетолог") for _ in range(20)
+            ],
+        }
+    )
+
+    wait_for_search_cards(driver, expected_count=20, timeout=5.0)
+
+    condition = wait_mock.return_value.until.call_args.args[0]
+    wait_mock.assert_called_once_with(driver, 5.0)
+    assert condition(driver) is True
 
 
 @patch("app.hh_parser.WebDriverWait")

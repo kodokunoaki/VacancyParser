@@ -109,6 +109,7 @@ python -m app.main
 | `DELAY_MIN`      | `1.5`           | Минимальная пауза между запросами (с) |
 | `DELAY_MAX`      | `3.2`           | Максимальная пауза между запросами (с)|
 | `PAGE_TIMEOUT`   | `30`            | Таймаут ожидания элементов (с)        |
+| `SEARCH_CARDS_WAIT_TIMEOUT` | `5.0` | Короткое ожидание полной выдачи карточек после быстрой загрузки страницы |
 | `HEADLESS`       | `true`          | Запуск браузера без GUI               |
 | `CHROMEDRIVER_PATH` | пусто | Путь к ChromeDriver. Если пусто, Selenium подбирает драйвер автоматически |
 | `PAGE_LOAD_STRATEGY` | `eager` | Стратегия загрузки страниц Chrome: `normal`, `eager` или `none` |

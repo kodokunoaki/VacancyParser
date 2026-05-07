@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     delay_min: float = 1.5
     delay_max: float = 3.2
     page_timeout: int = 30
+    search_cards_wait_timeout: float = 5.0
     headless: bool = True
     chromedriver_path: str | None = None
     page_load_strategy: Literal["normal", "eager", "none"] = "eager"

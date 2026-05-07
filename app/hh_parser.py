@@ -128,6 +128,23 @@ def find_search_cards(driver: ChromeDriver) -> list[SearchableElement]:
     return cards
 
 
+def wait_for_search_cards(
+    driver: ChromeDriver,
+    expected_count: int,
+    timeout: float,
+) -> None:
+    if timeout <= 0:
+        return
+
+    try:
+        WebDriverWait(driver, timeout).until(
+            lambda current_driver: len(find_search_cards(current_driver))
+            >= expected_count
+        )
+    except TimeoutException:
+        return
+
+
 def parse_vacancy_details(
     driver: ChromeDriver,
     vacancy: Vacancy,
@@ -179,6 +196,9 @@ def parse_search_page(
         emit_status(f"  Текущий URL браузера: {driver.current_url}", on_status)
         return [], False
 
+    wait_for_search_cards(
+        driver, config.items_on_page, config.search_cards_wait_timeout
+    )
     cards = find_search_cards(driver)
     vacancies = [vacancy for card in cards if (vacancy := parse_card(card)).url != "—"]
     has_next = bool(driver.find_elements(By.CSS_SELECTOR, "[data-qa='pager-next']"))

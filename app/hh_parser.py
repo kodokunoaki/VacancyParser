@@ -65,15 +65,25 @@ def build_search_url(page: int, config: Settings = settings) -> str:
 
 def build_driver(config: Settings = settings) -> ChromeDriver:
     options = Options()
+    options.page_load_strategy = config.page_load_strategy
     if config.headless:
         options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-sync")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
+    if config.disable_images:
+        options.add_experimental_option(
+            "prefs",
+            {"profile.managed_default_content_settings.images": 2},
+        )
     options.add_argument(f"user-agent={config.user_agent}")
 
     if config.chromedriver_path:

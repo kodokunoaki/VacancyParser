@@ -106,11 +106,13 @@ python -m app.main
 | `ITEMS_ON_PAGE`  | `100`           | Количество вакансий на странице       |
 | `MAX_PAGES`      | `5`             | Максимальное число страниц            |
 | `OUTPUT_FILE`    | `vacancies.csv` | Имя выходного файла                   |
-| `DELAY_MIN`      | `2.0`           | Минимальная пауза между запросами (с) |
-| `DELAY_MAX`      | `4.5`           | Максимальная пауза между запросами (с)|
+| `DELAY_MIN`      | `1.5`           | Минимальная пауза между запросами (с) |
+| `DELAY_MAX`      | `3.2`           | Максимальная пауза между запросами (с)|
 | `PAGE_TIMEOUT`   | `30`            | Таймаут ожидания элементов (с)        |
 | `HEADLESS`       | `true`          | Запуск браузера без GUI               |
 | `CHROMEDRIVER_PATH` | пусто | Путь к ChromeDriver. Если пусто, Selenium подбирает драйвер автоматически |
+| `PAGE_LOAD_STRATEGY` | `eager` | Стратегия загрузки страниц Chrome: `normal`, `eager` или `none` |
+| `DISABLE_IMAGES` | `true`          | Отключать загрузку изображений в Chrome |
 | `BASE_SEARCH_URL` | `https://hh.ru/search/vacancy` | URL поиска hh.ru      |
 
 ---

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,6 +20,8 @@ class Settings(BaseSettings):
     page_timeout: int = 30
     headless: bool = True
     chromedriver_path: str | None = None
+    page_load_strategy: Literal["normal", "eager", "none"] = "eager"
+    disable_images: bool = True
     base_search_url: str = "https://hh.ru/search/vacancy"
     user_agent: str = Field(
         default=(

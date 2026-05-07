@@ -128,6 +128,30 @@ def test_build_driver_uses_selenium_manager_without_chromedriver_path(
 
 
 @patch("app.hh_parser.ChromeDriver")
+def test_build_driver_configures_fast_page_loading(chrome_mock: Mock) -> None:
+    config = Settings(page_load_strategy="eager", disable_images=True)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    options = kwargs["options"]
+    assert options.page_load_strategy == "eager"
+    assert options.experimental_options["prefs"] == {
+        "profile.managed_default_content_settings.images": 2
+    }
+
+
+@patch("app.hh_parser.ChromeDriver")
+def test_build_driver_allows_images_when_configured(chrome_mock: Mock) -> None:
+    config = Settings(disable_images=False)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    assert "prefs" not in kwargs["options"].experimental_options
+
+
+@patch("app.hh_parser.ChromeDriver")
 @patch("app.hh_parser.Service")
 def test_build_driver_uses_service_with_chromedriver_path(
     service_mock: Mock,

@@ -5,6 +5,11 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app.core.config import Settings, settings
+from app.gui_config import (
+    ITEMS_ON_PAGE_OPTIONS,
+    build_gui_config,
+    output_name_without_csv,
+)
 from app.hh_parser import build_driver, collect_vacancies, save_to_csv
 
 
@@ -16,11 +21,16 @@ class ParserApp:
 
         self.search_query = tk.StringVar(value=settings.search_query)
         self.salary = tk.StringVar(value=str(settings.salary))
+        self.max_pages = tk.StringVar(value=str(settings.max_pages))
+        self.output_file = tk.StringVar(
+            value=output_name_without_csv(settings.output_file)
+        )
+        self.items_on_page = tk.StringVar(value=str(settings.items_on_page))
         self.status = tk.StringVar(value="Готов к поиску")
 
         self.root.title("HH Parser")
-        self.root.geometry("720x520")
-        self.root.minsize(620, 420)
+        self.root.geometry("720x620")
+        self.root.minsize(620, 520)
 
         self._build_layout()
         self.root.after(100, self._process_events)
@@ -59,12 +69,60 @@ class ParserApp:
             sticky="w",
         )
 
+        ttk.Label(form, text="Страниц максимум").grid(
+            row=2,
+            column=0,
+            sticky="w",
+            padx=(0, 12),
+            pady=(10, 0),
+        )
+        ttk.Entry(form, textvariable=self.max_pages, width=18).grid(
+            row=2,
+            column=1,
+            sticky="w",
+            pady=(10, 0),
+        )
+
+        ttk.Label(form, text="Имя файла").grid(
+            row=3,
+            column=0,
+            sticky="w",
+            padx=(0, 12),
+            pady=(10, 0),
+        )
+        ttk.Entry(form, textvariable=self.output_file).grid(
+            row=3,
+            column=1,
+            sticky="ew",
+            pady=(10, 0),
+        )
+
+        ttk.Label(form, text="Вакансий на странице").grid(
+            row=4,
+            column=0,
+            sticky="w",
+            padx=(0, 12),
+            pady=(10, 0),
+        )
+        ttk.Combobox(
+            form,
+            textvariable=self.items_on_page,
+            values=ITEMS_ON_PAGE_OPTIONS,
+            state="readonly",
+            width=15,
+        ).grid(
+            row=4,
+            column=1,
+            sticky="w",
+            pady=(10, 0),
+        )
+
         self.start_button = ttk.Button(
             form,
             text="Начать поиск",
             command=self.start_search,
         )
-        self.start_button.grid(row=2, column=0, columnspan=2, sticky="w", pady=(16, 0))
+        self.start_button.grid(row=5, column=0, columnspan=2, sticky="w", pady=(16, 0))
 
         log_frame = ttk.Frame(self.root, padding=(16, 0, 16, 12))
         log_frame.grid(row=1, column=0, sticky="nsew")
@@ -90,31 +148,22 @@ class ParserApp:
         if self.worker is not None and self.worker.is_alive():
             return
 
-        query = self.search_query.get().strip()
-        if not query:
-            messagebox.showerror("Ошибка", "Введите поисковый запрос.")
-            return
-
         try:
-            salary = int(self.salary.get().strip())
-        except ValueError:
-            messagebox.showerror("Ошибка", "Зарплата должна быть целым числом.")
-            return
-
-        if salary < 0:
-            messagebox.showerror("Ошибка", "Зарплата не может быть отрицательной.")
+            config = build_gui_config(
+                query=self.search_query.get(),
+                salary_text=self.salary.get(),
+                max_pages_text=self.max_pages.get(),
+                output_file_text=self.output_file.get(),
+                items_on_page_text=self.items_on_page.get(),
+            )
+        except ValueError as exc:
+            messagebox.showerror("Ошибка", str(exc))
             return
 
         self._clear_log()
         self._set_running(True)
         self._add_status("Запускаю браузер...")
 
-        config = settings.model_copy(
-            update={
-                "search_query": query,
-                "salary": salary,
-            }
-        )
         self.worker = threading.Thread(
             target=self._run_parser,
             args=(config,),

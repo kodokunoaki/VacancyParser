@@ -4,6 +4,11 @@ from selenium.common.exceptions import NoSuchElementException
 
 from app.core.config import Settings
 from app.core.utils import clean_url, first_text
+from app.gui_config import (
+    build_gui_config,
+    csv_filename_from_input,
+    output_name_without_csv,
+)
 from app.hh_parser import (
     build_driver,
     build_search_url,
@@ -65,6 +70,48 @@ def test_build_search_url_uses_settings() -> None:
     assert "text=Python+developer" in url
     assert "salary=150000" in url
     assert "page=2" in url
+
+
+def test_output_name_without_csv_removes_suffix() -> None:
+    assert output_name_without_csv(" vacancies.CSV ") == "vacancies"
+
+
+def test_csv_filename_from_input_adds_csv_suffix() -> None:
+    assert csv_filename_from_input("result") == "result.csv"
+    assert csv_filename_from_input("result.csv") == "result.csv"
+
+
+def test_build_gui_config_uses_form_values() -> None:
+    config = build_gui_config(
+        query=" Python developer ",
+        salary_text="200000",
+        max_pages_text="3",
+        output_file_text="python_jobs",
+        items_on_page_text="50",
+        base_settings=Settings(),
+    )
+
+    assert config.search_query == "Python developer"
+    assert config.salary == 200000
+    assert config.max_pages == 3
+    assert config.output_file == "python_jobs.csv"
+    assert config.items_on_page == 50
+
+
+def test_build_gui_config_rejects_invalid_items_on_page() -> None:
+    try:
+        build_gui_config(
+            query="Python",
+            salary_text="100000",
+            max_pages_text="1",
+            output_file_text="result",
+            items_on_page_text="30",
+            base_settings=Settings(),
+        )
+    except ValueError as exc:
+        assert "20, 50 или 100" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid items_on_page")
 
 
 @patch("app.hh_parser.ChromeDriver")

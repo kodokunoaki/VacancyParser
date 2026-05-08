@@ -45,7 +45,7 @@ HHParser/
 ## Установка
  
 ```bash
-git clone https://github.com/your-username/HHParser.git
+git clone https://github.com/kodokunoaki/HHParser.git
 cd HHParser
  
 python -m venv venv

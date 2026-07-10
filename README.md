@@ -19,7 +19,7 @@ HHParser/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py               # CLI-точка входа
-│   ├── gui.py                # Tkinter GUI
+│   ├── gui.py                # CustomTkinter GUI
 │   ├── gui_config.py         # Подготовка настроек из формы GUI
 │   ├── hh_parser.py          # Логика сбора и обогащения вакансий
 │   ├── schemas.py            # Pydantic-схемы данных
@@ -48,6 +48,7 @@ HHParser/
 - Python 3.10+
 - Tkinter. На Windows обычно входит в Python. На Linux может понадобиться
   системный пакет `python3-tk`.
+- CustomTkinter для современного desktop-интерфейса.
 - Google Chrome или Chromium
 - ChromeDriver не нужно указывать вручную, если Selenium Manager может подобрать
   его автоматически. При необходимости путь можно задать через `CHROMEDRIVER_PATH`.
@@ -81,6 +82,7 @@ cp .env.example .env
 python -m app.gui
 ```
 
+GUI использует современный dark liquid-glass-like интерфейс на CustomTkinter.
 В окне приложения доступны поля:
 
 - поисковый запрос;
@@ -192,6 +194,7 @@ pylint app tests
 selenium>=4.20.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+customtkinter>=5.2.0
 pytest>=7.0.0
 ruff>=0.5.0
 pylint>=3.0.0

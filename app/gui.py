@@ -105,25 +105,25 @@ class ParserApp:
             text_color=TEXT_COLOR,
         ).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 14))
 
-        self.search_entry = self._add_entry(
+        self._add_entry(
             form,
             row=1,
             label="Поисковый запрос",
             variable=self.search_query,
         )
-        self.salary_entry = self._add_entry(
+        self._add_entry(
             form,
             row=2,
             label="Зарплата от, руб.",
             variable=self.salary,
         )
-        self.max_pages_entry = self._add_entry(
+        self._add_entry(
             form,
             row=3,
             label="Страниц максимум",
             variable=self.max_pages,
         )
-        self.output_entry = self._add_entry(
+        self._add_entry(
             form,
             row=4,
             label="Имя файла",
@@ -136,7 +136,7 @@ class ParserApp:
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=MUTED_TEXT_COLOR,
         ).grid(row=9, column=0, sticky="w", padx=20, pady=(6, 6))
-        self.items_combo = ctk.CTkComboBox(
+        items_combo = ctk.CTkComboBox(
             form,
             values=list(ITEMS_ON_PAGE_OPTIONS),
             variable=self.items_on_page,
@@ -152,7 +152,7 @@ class ParserApp:
             corner_radius=12,
             height=42,
         )
-        self.items_combo.grid(row=10, column=0, sticky="ew", padx=20, pady=(0, 18))
+        items_combo.grid(row=10, column=0, sticky="ew", padx=20, pady=(0, 18))
 
         self.start_button = ctk.CTkButton(
             form,

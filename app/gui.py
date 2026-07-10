@@ -31,6 +31,7 @@ class ParserApp:
         self.root = root
         self.events: queue.Queue[tuple[str, str]] = queue.Queue()
         self.worker: threading.Thread | None = None
+        self.stop_requested = threading.Event()
 
         self.search_query = tk.StringVar(value=settings.search_query)
         self.salary = tk.StringVar(value=str(settings.salary))
@@ -43,7 +44,7 @@ class ParserApp:
 
         self.root.title("HH Parser")
         self.root.geometry("960x640")
-        self.root.minsize(780, 640)
+        self.root.minsize(780, 460)
         self.root.configure(fg_color=WINDOW_BG)
 
         self._build_layout()
@@ -97,6 +98,7 @@ class ParserApp:
         form.grid(row=1, column=0, sticky="nsew", padx=(0, 16))
         form.grid_propagate(False)
         form.columnconfigure(0, weight=1)
+        form.rowconfigure(1, weight=1)
 
         ctk.CTkLabel(
             form,
@@ -105,39 +107,49 @@ class ParserApp:
             text_color=TEXT_COLOR,
         ).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 14))
 
-        self._add_entry(
+        form_content = ctk.CTkScrollableFrame(
             form,
+            fg_color=PANEL_BG,
+            scrollbar_button_color=BORDER_COLOR,
+            scrollbar_button_hover_color=ACCENT_HOVER_COLOR,
+            corner_radius=0,
+        )
+        form_content.grid(row=1, column=0, sticky="nsew", padx=0, pady=(0, 10))
+        form_content.columnconfigure(0, weight=1)
+
+        self._add_entry(
+            form_content,
             row=1,
             label="Поисковый запрос",
             variable=self.search_query,
         )
         self._add_entry(
-            form,
+            form_content,
             row=2,
             label="Зарплата от, руб.",
             variable=self.salary,
         )
         self._add_entry(
-            form,
+            form_content,
             row=3,
             label="Страниц максимум",
             variable=self.max_pages,
         )
         self._add_entry(
-            form,
+            form_content,
             row=4,
             label="Имя файла",
             variable=self.output_file,
         )
 
         ctk.CTkLabel(
-            form,
+            form_content,
             text="Вакансий на странице",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=MUTED_TEXT_COLOR,
         ).grid(row=9, column=0, sticky="w", padx=20, pady=(6, 6))
         items_combo = ctk.CTkComboBox(
-            form,
+            form_content,
             values=list(ITEMS_ON_PAGE_OPTIONS),
             variable=self.items_on_page,
             state="readonly",
@@ -155,7 +167,7 @@ class ParserApp:
         items_combo.grid(row=10, column=0, sticky="ew", padx=20, pady=(0, 18))
 
         self.start_button = ctk.CTkButton(
-            form,
+            form_content,
             text="Начать поиск",
             command=self.start_search,
             fg_color=ACCENT_COLOR,
@@ -165,18 +177,7 @@ class ParserApp:
             corner_radius=14,
             height=46,
         )
-        self.start_button.grid(row=11, column=0, sticky="ew", padx=20, pady=(4, 12))
-
-        self.progress = ctk.CTkProgressBar(
-            form,
-            mode="indeterminate",
-            progress_color=ACCENT_COLOR,
-            fg_color=FIELD_BG,
-            height=8,
-            corner_radius=8,
-        )
-        self.progress.grid(row=12, column=0, sticky="ew", padx=20, pady=(0, 20))
-        self.progress.set(0)
+        self.start_button.grid(row=11, column=0, sticky="ew", padx=20, pady=(4, 20))
 
         log_panel = ctk.CTkFrame(
             shell,
@@ -252,6 +253,7 @@ class ParserApp:
 
     def start_search(self) -> None:
         if self.worker is not None and self.worker.is_alive():
+            self.request_stop()
             return
 
         try:
@@ -267,6 +269,7 @@ class ParserApp:
             return
 
         self._clear_log()
+        self.stop_requested.clear()
         self._set_running(True)
         self._add_status("Запускаю браузер...")
 
@@ -281,7 +284,29 @@ class ParserApp:
         driver = None
         try:
             driver = build_driver(config)
-            vacancies = collect_vacancies(driver, config, self._queue_status)
+            vacancies = collect_vacancies(
+                driver,
+                config,
+                self._queue_status,
+                self.stop_requested.is_set,
+            )
+            if self.stop_requested.is_set():
+                if vacancies:
+                    save_to_csv(vacancies, config.output_file, self._queue_status)
+                    self.events.put(
+                        (
+                            "stopped",
+                            (
+                                "Остановлено: сохранено "
+                                f"{len(vacancies)} вакансий в {config.output_file}"
+                            ),
+                        )
+                    )
+                    return
+
+                self.events.put(("stopped", "Остановлено: вакансии не сохранены."))
+                return
+
             if not vacancies:
                 self.events.put(("done", "Вакансии не найдены."))
                 return
@@ -302,6 +327,12 @@ class ParserApp:
     def _queue_status(self, message: str) -> None:
         self.events.put(("status", message))
 
+    def request_stop(self) -> None:
+        self.stop_requested.set()
+        self.status.set("Останавливаю поиск...")
+        self.start_button.configure(state="disabled", text="Останавливаю...")
+        self._add_status("Получена команда остановки. Завершаю текущую операцию...")
+
     def _process_events(self) -> None:
         while True:
             try:
@@ -316,6 +347,11 @@ class ParserApp:
                 self.status.set(message)
                 self._set_running(False)
                 messagebox.showinfo("Готово", message, parent=self.root)
+            elif event == "stopped":
+                self._add_status(message)
+                self.status.set(message)
+                self._set_running(False)
+                messagebox.showinfo("Остановлено", message, parent=self.root)
             elif event == "error":
                 self._add_status(message)
                 self.status.set("Ошибка во время поиска")
@@ -338,13 +374,20 @@ class ParserApp:
 
     def _set_running(self, is_running: bool) -> None:
         if is_running:
-            self.start_button.configure(state="disabled", text="Поиск запущен")
-            self.progress.start()
+            self.start_button.configure(
+                fg_color="#fb7185",
+                hover_color="#f43f5e",
+                state="normal",
+                text="Остановить поиск",
+            )
             return
 
-        self.start_button.configure(state="normal", text="Начать поиск")
-        self.progress.stop()
-        self.progress.set(0)
+        self.start_button.configure(
+            fg_color=ACCENT_COLOR,
+            hover_color=ACCENT_HOVER_COLOR,
+            state="normal",
+            text="Начать поиск",
+        )
 
 
 def main() -> None:

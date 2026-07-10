@@ -37,12 +37,26 @@ COMPANY_SELECTORS = (
 DESCRIPTION_SELECTORS = ("[data-qa='vacancy-description']",)
 SKILL_SELECTORS = ("[data-qa='skills-element']",)
 StatusCallback = Callable[[str], None]
+StopCallback = Callable[[], bool]
 
 
 def emit_status(message: str, on_status: StatusCallback | None = None) -> None:
     print(message)
     if on_status is not None:
         on_status(message)
+
+
+def sleep_with_stop(seconds: float, should_stop: StopCallback | None = None) -> None:
+    deadline = time.monotonic() + seconds
+    while True:
+        if should_stop is not None and should_stop():
+            return
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+
+        time.sleep(min(0.2, remaining))
 
 
 def build_search_url(page: int, config: Settings = settings) -> str:
@@ -214,19 +228,41 @@ def collect_vacancies(
     driver: ChromeDriver,
     config: Settings = settings,
     on_status: StatusCallback | None = None,
+    should_stop: StopCallback | None = None,
 ) -> list[Vacancy]:
     vacancies: list[Vacancy] = []
     for page in range(config.max_pages):
+        if should_stop is not None and should_stop():
+            emit_status(
+                "Остановка поиска перед загрузкой следующей страницы.", on_status
+            )
+            break
+
         page_vacancies, has_next = parse_search_page(driver, page, config, on_status)
         for vacancy in page_vacancies:
+            if should_stop is not None and should_stop():
+                emit_status(
+                    "Остановка поиска перед обработкой следующей вакансии.", on_status
+                )
+                break
+
             enriched = parse_vacancy_details(driver, vacancy, config, on_status)
             vacancies.append(enriched)
+
+            if should_stop is not None and should_stop():
+                emit_status(
+                    "Остановка поиска после обработки текущей вакансии.", on_status
+                )
+                break
 
             delay = random.uniform(config.delay_min, config.delay_max)
             emit_status(
                 f"  Пауза перед следующей вакансией: {delay:.1f} сек.", on_status
             )
-            time.sleep(delay)
+            sleep_with_stop(delay, should_stop)
+
+        if should_stop is not None and should_stop():
+            break
 
         if not has_next:
             emit_status(
@@ -237,7 +273,7 @@ def collect_vacancies(
 
         delay = random.uniform(config.delay_min, config.delay_max)
         emit_status(f"  Пауза перед следующей страницей: {delay:.1f} сек.", on_status)
-        time.sleep(delay)
+        sleep_with_stop(delay, should_stop)
     return vacancies
 
 

@@ -12,6 +12,7 @@ from app.gui_config import (
 from app.hh_parser import (
     build_driver,
     build_search_url,
+    collect_vacancies,
     find_search_cards,
     parse_card,
     parse_vacancy_details,
@@ -260,3 +261,31 @@ def test_parse_vacancy_details_enriches_vacancy(wait_mock: Mock) -> None:
     driver.get.assert_called_once_with("https://hh.ru/1")
     assert enriched.description == "Делать маркетинг и аналитику"
     assert enriched.key_skills == ["SEO", "Аналитика"]
+
+
+@patch("app.hh_parser.parse_search_page")
+@patch("app.hh_parser.parse_vacancy_details")
+def test_collect_vacancies_stops_after_current_vacancy(
+    parse_details_mock: Mock,
+    parse_page_mock: Mock,
+) -> None:
+    processed: list[Vacancy] = []
+    first = Vacancy(title="Python", company="ООО Ромашка", url="https://hh.ru/1")
+    second = Vacancy(title="Django", company="ООО Ромашка", url="https://hh.ru/2")
+    parse_page_mock.return_value = ([first, second], True)
+
+    def parse_details(driver: Mock, vacancy: Vacancy, *args: object) -> Vacancy:
+        processed.append(vacancy)
+        return vacancy
+
+    parse_details_mock.side_effect = parse_details
+
+    vacancies = collect_vacancies(
+        driver=Mock(),
+        config=Settings(max_pages=3),
+        should_stop=lambda: len(processed) >= 1,
+    )
+
+    assert vacancies == [first]
+    parse_page_mock.assert_called_once()
+    parse_details_mock.assert_called_once()

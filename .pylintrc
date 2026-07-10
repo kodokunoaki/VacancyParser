@@ -1,0 +1,35 @@
+[MASTER]
+ignore=venv,.venv,build,dist
+jobs=0
+persistent=no
+
+[MESSAGES CONTROL]
+disable=
+    import-error,
+    line-too-long,
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    too-many-positional-arguments,
+    broad-exception-caught,
+    duplicate-code,
+    unused-argument,
+    attribute-defined-outside-init
+
+[FORMAT]
+max-line-length=88
+
+[DESIGN]
+max-args=8
+max-attributes=12
+max-locals=20
+
+[TYPECHECK]
+generated-members=tkinter.*
+
+[SIMILARITIES]
+min-similarity-lines=8
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=yes

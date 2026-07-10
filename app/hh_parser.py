@@ -138,8 +138,9 @@ def wait_for_search_cards(
 
     try:
         WebDriverWait(driver, timeout).until(
-            lambda current_driver: len(find_search_cards(current_driver))
-            >= expected_count
+            lambda current_driver: (
+                len(find_search_cards(current_driver)) >= expected_count
+            )
         )
     except TimeoutException:
         return
@@ -277,9 +278,7 @@ def print_table(vacancies: list[Vacancy]) -> None:
 
     sep = f"+{'-' * (col_title + 2)}+{'-' * (col_company + 2)}+{'-' * 55}+"
     header = (
-        f"| {'Вакансия':<{col_title}} "
-        f"| {'Компания':<{col_company}} "
-        f"| {'Ссылка':<53} |"
+        f"| {'Вакансия':<{col_title}} | {'Компания':<{col_company}} | {'Ссылка':<53} |"
     )
     print(sep)
     print(header)

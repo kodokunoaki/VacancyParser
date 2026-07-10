@@ -1,4 +1,10 @@
 # HH Parser
+
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![Deps: pip](https://img.shields.io/badge/deps-pip-3775A9)
+![Format: ruff](https://img.shields.io/badge/format-ruff-46A758)
+[![Lint](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml)
+[![Tests](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml)
  
 Парсер вакансий с [hh.ru](https://hh.ru) на Python с использованием Selenium.  
 Собирает вакансии по заданным параметрам поиска, переходит в каждую карточку
@@ -24,6 +30,11 @@ HHParser/
 ├── tests/
 │   ├── __init__.py
 │   └── test_hh_parser.py
+├── .github/
+│   └── workflows/
+│       ├── lint.yml
+│       └── tests.yml
+├── .pylintrc
 ├── .env.example
 ├── AGENTS.md                 # Правила для AI-агентов и разработки
 ├── README.md
@@ -162,6 +173,16 @@ python -m PyInstaller --clean HHParser.spec
 ```bash
 pytest tests/
 ```
+
+---
+
+## Линт и форматирование
+
+```bash
+ruff format app/ tests/
+ruff check app/ tests/
+pylint app tests
+```
  
 ---
  
@@ -172,6 +193,7 @@ selenium>=4.20.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
 pytest>=7.0.0
-black>=24.0.0
+ruff>=0.5.0
+pylint>=3.0.0
 pyinstaller>=6.0.0
 ```

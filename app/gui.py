@@ -1,5 +1,6 @@
 import queue
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import messagebox
 
 import customtkinter as ctk
@@ -26,6 +27,47 @@ from app.ui.theme import (
 )
 
 
+@dataclass(frozen=True)
+class GuiVariables:
+    search_query: tk.StringVar
+    salary: tk.StringVar
+    max_pages: tk.StringVar
+    output_file: tk.StringVar
+    items_on_page: tk.StringVar
+    status: tk.StringVar
+    empty_title: tk.StringVar
+    empty_description: tk.StringVar
+
+
+@dataclass(frozen=True)
+class FormWidgets:
+    query: LabeledEntry
+    salary: LabeledEntry
+    pages: LabeledEntry
+    items: LabeledComboBox
+    output: LabeledEntry
+    start_button: ctk.CTkButton
+
+    @property
+    def fields(self) -> tuple[LabeledEntry | LabeledComboBox, ...]:
+        return self.query, self.salary, self.pages, self.items, self.output
+
+
+@dataclass(frozen=True)
+class ActivityWidgets:
+    clear_button: ctk.CTkButton
+    log: ctk.CTkTextbox
+    empty_state: ctk.CTkFrame
+    progress: ctk.CTkProgressBar
+
+
+@dataclass(frozen=True)
+class GuiWidgets:
+    form: FormWidgets
+    activity: ActivityWidgets
+    status_dot: ctk.CTkLabel
+
+
 class ParserApp:
     def __init__(self, root: ctk.CTk) -> None:
         self.root = root
@@ -34,21 +76,23 @@ class ParserApp:
         self._event_job: str | None = None
         self._has_log_content = False
 
-        self.search_query = tk.StringVar(value=settings.search_query)
-        self.salary = tk.StringVar(value=str(settings.salary))
-        self.max_pages = tk.StringVar(value=str(settings.max_pages))
-        self.output_file = tk.StringVar(
-            value=output_name_without_csv(settings.output_file)
-        )
-        self.items_on_page = tk.StringVar(value=str(settings.items_on_page))
-        self.status = tk.StringVar(value="Готово к запуску")
-        self.empty_title = tk.StringVar(value="Поиск ещё не запускался")
-        self.empty_description = tk.StringVar(
-            value="Здесь появится прогресс и журнал операций"
+        self.variables = GuiVariables(
+            search_query=tk.StringVar(value=settings.search_query),
+            salary=tk.StringVar(value=str(settings.salary)),
+            max_pages=tk.StringVar(value=str(settings.max_pages)),
+            output_file=tk.StringVar(
+                value=output_name_without_csv(settings.output_file)
+            ),
+            items_on_page=tk.StringVar(value=str(settings.items_on_page)),
+            status=tk.StringVar(value="Готово к запуску"),
+            empty_title=tk.StringVar(value="Поиск ещё не запускался"),
+            empty_description=tk.StringVar(
+                value="Здесь появится прогресс и журнал операций"
+            ),
         )
 
         self._configure_window()
-        self._build_layout()
+        self.widgets = self._build_layout()
         self._set_running(False)
         self._event_job = self.root.after(100, self._process_events)
 
@@ -59,7 +103,7 @@ class ParserApp:
         self.root.configure(fg_color=COLORS.window)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
-    def _build_layout(self) -> None:
+    def _build_layout(self) -> GuiWidgets:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(1, weight=1)
 
@@ -71,9 +115,11 @@ class ParserApp:
         workspace.columnconfigure(1, weight=1)
         workspace.rowconfigure(0, weight=1)
 
-        self._build_settings_panel(workspace)
-        self._build_activity_panel(workspace)
-        self._build_status_bar()
+        return GuiWidgets(
+            form=self._build_settings_panel(workspace),
+            activity=self._build_activity_panel(workspace),
+            status_dot=self._build_status_bar(),
+        )
 
     def _build_header(self) -> None:
         header = ctk.CTkFrame(self.root, fg_color="transparent", height=82)
@@ -123,7 +169,7 @@ class ParserApp:
             corner_radius=PANEL_RADIUS,
         )
 
-    def _build_settings_panel(self, workspace: ctk.CTkFrame) -> None:
+    def _build_settings_panel(self, workspace: ctk.CTkFrame) -> FormWidgets:
         panel = self._panel(workspace)
         panel.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         panel.columnconfigure(0, weight=1)
@@ -137,52 +183,52 @@ class ParserApp:
             font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
         ).grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 16))
 
-        self.query_field = LabeledEntry(
+        query_field = LabeledEntry(
             panel,
             "Поисковый запрос",
-            self.search_query,
+            self.variables.search_query,
             placeholder="Например: Python-разработчик",
         )
-        self.query_field.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 13))
+        query_field.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 13))
 
         numeric_row = ctk.CTkFrame(panel, fg_color="transparent")
         numeric_row.grid(row=2, column=0, sticky="ew", padx=22, pady=(0, 13))
         numeric_row.columnconfigure((0, 1), weight=1)
 
-        self.salary_field = LabeledEntry(
+        salary_field = LabeledEntry(
             numeric_row,
             "Зарплата от",
-            self.salary,
+            self.variables.salary,
             placeholder="100000",
             suffix="₽",
         )
-        self.salary_field.grid(row=0, column=0, sticky="ew", padx=(0, 6))
-        self.pages_field = LabeledEntry(
+        salary_field.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        pages_field = LabeledEntry(
             numeric_row,
             "Максимум страниц",
-            self.max_pages,
+            self.variables.max_pages,
             placeholder="5",
         )
-        self.pages_field.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        pages_field.grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
-        self.items_field = LabeledComboBox(
+        items_field = LabeledComboBox(
             panel,
             "Вакансий на странице",
-            self.items_on_page,
+            self.variables.items_on_page,
             ITEMS_ON_PAGE_OPTIONS,
         )
-        self.items_field.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 13))
+        items_field.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 13))
 
-        self.output_field = LabeledEntry(
+        output_field = LabeledEntry(
             panel,
             "Файл результата",
-            self.output_file,
+            self.variables.output_file,
             placeholder="vacancies",
             suffix=".csv",
         )
-        self.output_field.grid(row=4, column=0, sticky="ew", padx=22)
+        output_field.grid(row=4, column=0, sticky="ew", padx=22)
 
-        self.start_button = ctk.CTkButton(
+        start_button = ctk.CTkButton(
             panel,
             text="Начать поиск",
             command=self._handle_primary_action,
@@ -193,7 +239,7 @@ class ParserApp:
             corner_radius=CONTROL_RADIUS,
             font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
         )
-        self.start_button.grid(
+        start_button.grid(
             row=7,
             column=0,
             sticky="sew",
@@ -201,15 +247,16 @@ class ParserApp:
             pady=(20, 22),
         )
 
-        self.form_fields = (
-            self.query_field,
-            self.salary_field,
-            self.pages_field,
-            self.items_field,
-            self.output_field,
+        return FormWidgets(
+            query=query_field,
+            salary=salary_field,
+            pages=pages_field,
+            items=items_field,
+            output=output_field,
+            start_button=start_button,
         )
 
-    def _build_activity_panel(self, workspace: ctk.CTkFrame) -> None:
+    def _build_activity_panel(self, workspace: ctk.CTkFrame) -> ActivityWidgets:
         panel = self._panel(workspace)
         panel.grid(row=0, column=1, sticky="nsew")
         panel.columnconfigure(0, weight=1)
@@ -226,7 +273,7 @@ class ParserApp:
             text_color=COLORS.text,
             font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
         ).grid(row=0, column=0, sticky="w")
-        self.clear_button = ctk.CTkButton(
+        clear_button = ctk.CTkButton(
             activity_header,
             text="Очистить журнал",
             command=self._clear_log,
@@ -241,15 +288,15 @@ class ParserApp:
             font=ctk.CTkFont(family=FONT_FAMILY, size=13),
             state="disabled",
         )
-        self.clear_button.grid(row=0, column=1, sticky="e")
+        clear_button.grid(row=0, column=1, sticky="e")
 
-        self.log_container = ctk.CTkFrame(panel, fg_color="transparent")
-        self.log_container.grid(row=1, column=0, sticky="nsew", padx=22)
-        self.log_container.columnconfigure(0, weight=1)
-        self.log_container.rowconfigure(0, weight=1)
+        log_container = ctk.CTkFrame(panel, fg_color="transparent")
+        log_container.grid(row=1, column=0, sticky="nsew", padx=22)
+        log_container.columnconfigure(0, weight=1)
+        log_container.rowconfigure(0, weight=1)
 
-        self.log = ctk.CTkTextbox(
-            self.log_container,
+        log = ctk.CTkTextbox(
+            log_container,
             wrap="word",
             fg_color=COLORS.field,
             border_color=COLORS.border,
@@ -262,21 +309,21 @@ class ParserApp:
             spacing1=3,
             spacing3=3,
         )
-        self.log.grid(row=0, column=0, sticky="nsew")
-        self.log.configure(state="disabled")
+        log.grid(row=0, column=0, sticky="nsew")
+        log.configure(state="disabled")
 
-        self.empty_state = ctk.CTkFrame(
-            self.log_container,
+        empty_state = ctk.CTkFrame(
+            log_container,
             fg_color=COLORS.field,
             border_color=COLORS.border,
             border_width=1,
             corner_radius=CONTROL_RADIUS,
         )
-        self.empty_state.grid(row=0, column=0, sticky="nsew")
-        self.empty_state.columnconfigure(0, weight=1)
-        self.empty_state.rowconfigure((0, 3), weight=1)
+        empty_state.grid(row=0, column=0, sticky="nsew")
+        empty_state.columnconfigure(0, weight=1)
+        empty_state.rowconfigure((0, 3), weight=1)
         empty_icon = ctk.CTkFrame(
-            self.empty_state,
+            empty_state,
             width=58,
             height=58,
             fg_color="transparent",
@@ -293,19 +340,19 @@ class ParserApp:
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
         ).place(relx=0.5, rely=0.5, anchor="center")
         ctk.CTkLabel(
-            self.empty_state,
-            textvariable=self.empty_title,
+            empty_state,
+            textvariable=self.variables.empty_title,
             text_color=COLORS.text,
             font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"),
         ).grid(row=2, column=0)
         ctk.CTkLabel(
-            self.empty_state,
-            textvariable=self.empty_description,
+            empty_state,
+            textvariable=self.variables.empty_description,
             text_color=COLORS.text_faint,
             font=ctk.CTkFont(family=FONT_FAMILY, size=13),
         ).grid(row=3, column=0, sticky="n", pady=(8, 0))
 
-        self.progress = ctk.CTkProgressBar(
+        progress = ctk.CTkProgressBar(
             panel,
             height=5,
             corner_radius=3,
@@ -313,10 +360,17 @@ class ParserApp:
             progress_color=COLORS.accent,
             mode="indeterminate",
         )
-        self.progress.grid(row=2, column=0, sticky="ew", padx=22, pady=(15, 20))
-        self.progress.set(0)
+        progress.grid(row=2, column=0, sticky="ew", padx=22, pady=(15, 20))
+        progress.set(0)
 
-    def _build_status_bar(self) -> None:
+        return ActivityWidgets(
+            clear_button=clear_button,
+            log=log,
+            empty_state=empty_state,
+            progress=progress,
+        )
+
+    def _build_status_bar(self) -> ctk.CTkLabel:
         status_bar = ctk.CTkFrame(
             self.root,
             height=42,
@@ -328,21 +382,22 @@ class ParserApp:
         status_bar.grid_propagate(False)
         status_bar.columnconfigure(1, weight=1)
 
-        self.status_dot = ctk.CTkLabel(
+        status_dot = ctk.CTkLabel(
             status_bar,
             text="●",
             width=18,
             text_color=COLORS.success,
             font=ctk.CTkFont(size=17),
         )
-        self.status_dot.grid(row=0, column=0, sticky="e", padx=(20, 5), pady=9)
+        status_dot.grid(row=0, column=0, sticky="e", padx=(20, 5), pady=9)
         ctk.CTkLabel(
             status_bar,
-            textvariable=self.status,
+            textvariable=self.variables.status,
             anchor="w",
             text_color=COLORS.text_muted,
             font=ctk.CTkFont(family=FONT_FAMILY, size=13),
         ).grid(row=0, column=1, sticky="ew", padx=(0, 20), pady=9)
+        return status_dot
 
     def _handle_primary_action(self) -> None:
         if self.controller.is_running:
@@ -351,13 +406,14 @@ class ParserApp:
         self._start_search()
 
     def _start_search(self) -> None:
+        variables = self.variables
         try:
             config = build_gui_config(
-                query=self.search_query.get(),
-                salary_text=self.salary.get(),
-                max_pages_text=self.max_pages.get(),
-                output_file_text=self.output_file.get(),
-                items_on_page_text=self.items_on_page.get(),
+                query=variables.search_query.get(),
+                salary_text=variables.salary.get(),
+                max_pages_text=variables.max_pages.get(),
+                output_file_text=variables.output_file.get(),
+                items_on_page_text=variables.items_on_page.get(),
             )
         except ValueError as exc:
             messagebox.showerror("Проверьте параметры", str(exc), parent=self.root)
@@ -370,10 +426,11 @@ class ParserApp:
             self._set_running(True)
 
     def _request_stop(self) -> None:
+        form = self.widgets.form
         self.controller.request_stop()
-        self.status.set("Останавливаю поиск…")
-        self.status_dot.configure(text_color=COLORS.danger)
-        self.start_button.configure(state="disabled", text="Останавливаю…")
+        self.variables.status.set("Останавливаю поиск…")
+        self.widgets.status_dot.configure(text_color=COLORS.danger)
+        form.start_button.configure(state="disabled", text="Останавливаю…")
         self._add_status("Получена команда остановки. Завершаю текущую операцию…")
 
     def _process_events(self) -> None:
@@ -395,14 +452,14 @@ class ParserApp:
         self._set_running(False)
 
         if event.kind is ParserEventType.DONE:
-            self.status.set(event.message)
+            self.variables.status.set(event.message)
             messagebox.showinfo("Поиск завершён", event.message, parent=self.root)
         elif event.kind is ParserEventType.STOPPED:
-            self.status.set(event.message)
+            self.variables.status.set(event.message)
             messagebox.showinfo("Поиск остановлен", event.message, parent=self.root)
         else:
-            self.status.set("Не удалось завершить поиск")
-            self.status_dot.configure(text_color=COLORS.danger)
+            self.variables.status.set("Не удалось завершить поиск")
+            self.widgets.status_dot.configure(text_color=COLORS.danger)
             messagebox.showerror(
                 "Ошибка поиска",
                 "Произошла ошибка. Подробности сохранены в журнале.",
@@ -410,36 +467,40 @@ class ParserApp:
             )
 
     def _add_status(self, message: str) -> None:
+        activity = self.widgets.activity
         clean_message = message.strip()
-        self.status.set(clean_message or "Выполняю поиск…")
+        self.variables.status.set(clean_message or "Выполняю поиск…")
         if not self._has_log_content:
-            self.empty_state.grid_remove()
+            activity.empty_state.grid_remove()
             self._has_log_content = True
-            self.clear_button.configure(state="normal")
-        self.log.configure(state="normal")
-        self.log.insert("end", f"{message}\n")
-        self.log.see("end")
-        self.log.configure(state="disabled")
+            activity.clear_button.configure(state="normal")
+        activity.log.configure(state="normal")
+        activity.log.insert("end", f"{message}\n")
+        activity.log.see("end")
+        activity.log.configure(state="disabled")
 
     def _clear_log(self) -> None:
-        self.log.configure(state="normal")
-        self.log.delete("1.0", "end")
-        self.log.configure(state="disabled")
+        activity = self.widgets.activity
+        activity.log.configure(state="normal")
+        activity.log.delete("1.0", "end")
+        activity.log.configure(state="disabled")
         self._has_log_content = False
-        self.empty_title.set("Журнал пуст")
-        self.empty_description.set("Новые события появятся здесь")
-        self.clear_button.configure(state="disabled")
-        self.empty_state.grid()
+        self.variables.empty_title.set("Журнал пуст")
+        self.variables.empty_description.set("Новые события появятся здесь")
+        activity.clear_button.configure(state="disabled")
+        activity.empty_state.grid()
 
     def _set_running(self, is_running: bool) -> None:
-        for field in self.form_fields:
+        form = self.widgets.form
+        activity = self.widgets.activity
+        for field in form.fields:
             field.set_enabled(not is_running)
 
         if is_running:
-            self.progress.grid()
-            self.progress.start()
-            self.status_dot.configure(text_color=COLORS.accent)
-            self.start_button.configure(
+            activity.progress.grid()
+            activity.progress.start()
+            self.widgets.status_dot.configure(text_color=COLORS.accent)
+            form.start_button.configure(
                 state="normal",
                 text="Остановить поиск",
                 fg_color="transparent",
@@ -450,11 +511,11 @@ class ParserApp:
             )
             return
 
-        self.progress.stop()
-        self.progress.set(0)
-        self.progress.grid_remove()
-        self.status_dot.configure(text_color=COLORS.success)
-        self.start_button.configure(
+        activity.progress.stop()
+        activity.progress.set(0)
+        activity.progress.grid_remove()
+        self.widgets.status_dot.configure(text_color=COLORS.success)
+        form.start_button.configure(
             state="normal",
             text="Начать поиск",
             fg_color=COLORS.accent,

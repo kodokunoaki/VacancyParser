@@ -1,22 +1,18 @@
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
 class Palette:
-    window: str = "#0D1015"
-    surface: str = "#14181E"
-    surface_hover: str = "#1A1F27"
-    field: str = "#10141A"
-    border: str = "#343B46"
-    border_focus: str = "#6B7482"
-    text: str = "#F2F0ED"
-    text_muted: str = "#9CA3AF"
-    text_faint: str = "#747C89"
-    accent: str = "#F2554A"
-    accent_hover: str = "#D9473E"
-    accent_pressed: str = "#C43E36"
-    success: str = "#3FA47C"
-    danger: str = "#EF6461"
+    window = "#0D1015"
+    surface = "#14181E"
+    surface_hover = "#1A1F27"
+    field = "#10141A"
+    border = "#343B46"
+    border_focus = "#6B7482"
+    text = "#F2F0ED"
+    text_muted = "#9CA3AF"
+    text_faint = "#747C89"
+    accent = "#F2554A"
+    accent_hover = "#D9473E"
+    accent_pressed = "#C43E36"
+    success = "#3FA47C"
+    danger = "#EF6461"
 
 
 COLORS = Palette()

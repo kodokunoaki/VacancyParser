@@ -36,6 +36,15 @@ class ParserController:
     def request_stop(self) -> None:
         self._stop_requested.set()
 
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait for the active worker and report whether it has finished."""
+        worker = self._worker
+        if worker is None:
+            return True
+
+        worker.join(timeout)
+        return not worker.is_alive()
+
     def _publish(self, kind: ParserEventType, message: str) -> None:
         self.events.put(ParserEvent(kind=kind, message=message))
 

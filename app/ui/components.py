@@ -6,7 +6,7 @@ import customtkinter as ctk
 from app.ui.theme import COLORS, CONTROL_RADIUS, FONT_FAMILY
 
 
-class LabeledEntry(ctk.CTkFrame):
+class LabeledEntry(ctk.CTkFrame):  # pylint: disable=too-many-ancestors
     def __init__(
         self,
         master: ctk.CTkFrame,
@@ -84,7 +84,7 @@ class LabeledEntry(ctk.CTkFrame):
         self.input_shell.configure(border_color=COLORS.border)
 
 
-class LabeledComboBox(ctk.CTkFrame):
+class LabeledComboBox(ctk.CTkFrame):  # pylint: disable=too-many-ancestors
     def __init__(
         self,
         master: ctk.CTkFrame,

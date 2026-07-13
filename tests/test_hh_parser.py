@@ -98,6 +98,20 @@ def test_build_gui_config_uses_form_values() -> None:
     assert config.max_pages == 3
     assert config.output_file == "python_jobs.csv"
     assert config.items_on_page == 50
+    assert config.headless is True
+
+
+def test_build_gui_config_can_keep_visible_browser_when_configured() -> None:
+    config = build_gui_config(
+        query="Python developer",
+        salary_text="200000",
+        max_pages_text="3",
+        output_file_text="python_jobs",
+        items_on_page_text="50",
+        base_settings=Settings(headless=False, gui_force_headless=False),
+    )
+
+    assert config.headless is False
 
 
 def test_build_gui_config_rejects_invalid_items_on_page() -> None:
@@ -167,6 +181,23 @@ def test_build_driver_uses_service_with_chromedriver_path(
     _, kwargs = chrome_mock.call_args
     assert kwargs["service"] == service_mock.return_value
     assert "options" in kwargs
+
+
+@patch("app.hh_parser.sys.platform", "win32")
+@patch("app.hh_parser.subprocess.CREATE_NO_WINDOW", 134217728, create=True)
+@patch("app.hh_parser.ChromeDriver")
+@patch("app.hh_parser.Service")
+def test_build_driver_hides_chromedriver_service_window_on_windows(
+    service_mock: Mock,
+    chrome_mock: Mock,
+) -> None:
+    config = Settings(chromedriver_path=None)
+
+    build_driver(config)
+
+    service_mock.assert_called_once_with(None, creation_flags=134217728)
+    _, kwargs = chrome_mock.call_args
+    assert kwargs["service"] == service_mock.return_value
 
 
 def test_parse_card_returns_vacancy_from_search_card() -> None:

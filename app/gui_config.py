@@ -60,5 +60,8 @@ def build_gui_config(
             "max_pages": max_pages,
             "output_file": csv_filename_from_input(output_file_text),
             "items_on_page": items_on_page,
+            "headless": True
+            if base_settings.gui_force_headless
+            else base_settings.headless,
         }
     )

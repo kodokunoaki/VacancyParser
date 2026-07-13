@@ -1,5 +1,7 @@
 import csv
 import random
+import subprocess
+import sys
 import time
 from collections.abc import Callable
 from urllib.parse import urlencode
@@ -100,8 +102,16 @@ def build_driver(config: Settings = settings) -> ChromeDriver:
         )
     options.add_argument(f"user-agent={config.user_agent}")
 
-    if config.chromedriver_path:
-        service = Service(config.chromedriver_path)
+    if config.chromedriver_path or sys.platform == "win32":
+        service_kwargs = {}
+        if sys.platform == "win32":
+            service_kwargs["creation_flags"] = getattr(
+                subprocess,
+                "CREATE_NO_WINDOW",
+                0,
+            )
+
+        service = Service(config.chromedriver_path, **service_kwargs)
         return ChromeDriver(service=service, options=options)
     return ChromeDriver(options=options)
 

@@ -97,6 +97,10 @@ GUI использует современный dark liquid-glass-like инте�
 текущую операцию, закрывает браузер и сохраняет частичный CSV, если вакансии уже
 были собраны.
 
+В GUI Chrome запускается в headless-режиме по умолчанию, чтобы окно браузера не
+перекрывало приложение. Если нужно видеть браузер, установите
+`GUI_FORCE_HEADLESS=false` и `HEADLESS=false`.
+
 ---
 
 ## Запуск CLI
@@ -128,6 +132,7 @@ python -m app.main
 | `PAGE_TIMEOUT`   | `30`            | Таймаут ожидания элементов (с)        |
 | `SEARCH_CARDS_WAIT_TIMEOUT` | `5.0` | Короткое ожидание полной выдачи карточек после быстрой загрузки страницы |
 | `HEADLESS`       | `true`          | Запуск браузера без GUI               |
+| `GUI_FORCE_HEADLESS` | `true` | Принудительно запускать браузер без GUI при старте из desktop-интерфейса |
 | `CHROMEDRIVER_PATH` | пусто | Путь к ChromeDriver. Если пусто, Selenium подбирает драйвер автоматически |
 | `PAGE_LOAD_STRATEGY` | `eager` | Стратегия загрузки страниц Chrome: `normal`, `eager` или `none` |
 | `DISABLE_IMAGES` | `true`          | Отключать загрузку изображений в Chrome |

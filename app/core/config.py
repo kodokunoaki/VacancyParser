@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     page_timeout: int = 30
     search_cards_wait_timeout: float = 5.0
     headless: bool = True
+    gui_force_headless: bool = True
     chromedriver_path: str | None = None
     page_load_strategy: Literal["normal", "eager", "none"] = "eager"
     disable_images: bool = True

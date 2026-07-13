@@ -99,7 +99,8 @@ GUI использует современный dark liquid-glass-like инте�
 
 В GUI Chrome запускается в headless-режиме по умолчанию, чтобы окно браузера не
 перекрывало приложение. Если нужно видеть браузер, установите
-`GUI_FORCE_HEADLESS=false` и `HEADLESS=false`.
+`GUI_FORCE_HEADLESS=false`, `HEADLESS=false` и
+`HIDE_HEADLESS_BROWSER_WINDOW=false`.
 
 ---
 
@@ -133,6 +134,7 @@ python -m app.main
 | `SEARCH_CARDS_WAIT_TIMEOUT` | `5.0` | Короткое ожидание полной выдачи карточек после быстрой загрузки страницы |
 | `HEADLESS`       | `true`          | Запуск браузера без GUI               |
 | `GUI_FORCE_HEADLESS` | `true` | Принудительно запускать браузер без GUI при старте из desktop-интерфейса |
+| `HIDE_HEADLESS_BROWSER_WINDOW` | `true` | Сворачивать и уводить за экран окно Chrome, если headless-режим всё же создаёт видимое окно |
 | `CHROMEDRIVER_PATH` | пусто | Путь к ChromeDriver. Если пусто, Selenium подбирает драйвер автоматически |
 | `PAGE_LOAD_STRATEGY` | `eager` | Стратегия загрузки страниц Chrome: `normal`, `eager` или `none` |
 | `DISABLE_IMAGES` | `true`          | Отключать загрузку изображений в Chrome |

@@ -6,7 +6,11 @@ import time
 from collections.abc import Callable
 from urllib.parse import urlencode
 
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
@@ -84,6 +88,9 @@ def build_driver(config: Settings = settings) -> ChromeDriver:
     options.page_load_strategy = config.page_load_strategy
     if config.headless:
         options.add_argument("--headless=new")
+        if config.hide_headless_browser_window:
+            options.add_argument("--start-minimized")
+            options.add_argument("--window-position=-32000,-32000")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
@@ -112,8 +119,22 @@ def build_driver(config: Settings = settings) -> ChromeDriver:
             )
 
         service = Service(config.chromedriver_path, **service_kwargs)
-        return ChromeDriver(service=service, options=options)
-    return ChromeDriver(options=options)
+        driver = ChromeDriver(service=service, options=options)
+    else:
+        driver = ChromeDriver(options=options)
+
+    hide_browser_window(driver, config)
+    return driver
+
+
+def hide_browser_window(driver: ChromeDriver, config: Settings = settings) -> None:
+    if not config.headless or not config.hide_headless_browser_window:
+        return
+
+    try:
+        driver.minimize_window()
+    except WebDriverException:
+        return
 
 
 def parse_card(card: SearchableElement) -> Vacancy:

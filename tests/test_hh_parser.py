@@ -144,6 +144,34 @@ def test_build_driver_uses_selenium_manager_without_chromedriver_path(
 
 
 @patch("app.hh_parser.ChromeDriver")
+def test_build_driver_hides_headless_browser_window(chrome_mock: Mock) -> None:
+    config = Settings(headless=True, hide_headless_browser_window=True)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    options = kwargs["options"]
+    assert "--headless=new" in options.arguments
+    assert "--start-minimized" in options.arguments
+    assert "--window-position=-32000,-32000" in options.arguments
+    chrome_mock.return_value.minimize_window.assert_called_once_with()
+
+
+@patch("app.hh_parser.ChromeDriver")
+def test_build_driver_keeps_visible_browser_when_configured(chrome_mock: Mock) -> None:
+    config = Settings(headless=False, hide_headless_browser_window=True)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    options = kwargs["options"]
+    assert "--headless=new" not in options.arguments
+    assert "--start-minimized" not in options.arguments
+    assert "--window-position=-32000,-32000" not in options.arguments
+    chrome_mock.return_value.minimize_window.assert_not_called()
+
+
+@patch("app.hh_parser.ChromeDriver")
 def test_build_driver_configures_fast_page_loading(chrome_mock: Mock) -> None:
     config = Settings(page_load_strategy="eager", disable_images=True)
 

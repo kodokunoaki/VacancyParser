@@ -1,10 +1,10 @@
-# HH Parser
+# HH Vacancy Parser
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Deps: pip](https://img.shields.io/badge/deps-pip-3775A9)
 ![Format: ruff](https://img.shields.io/badge/format-ruff-46A758)
-[![Lint](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml)
-[![Tests](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml)
+[![Lint](https://github.com/kodokunoaki/VacancyParser/actions/workflows/lint.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml)
+[![Tests](https://github.com/kodokunoaki/VacancyParser/actions/workflows/tests.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml)
  
 Парсер вакансий с [hh.ru](https://hh.ru) на Python с использованием Selenium.  
 Собирает вакансии по заданным параметрам поиска, переходит в каждую карточку

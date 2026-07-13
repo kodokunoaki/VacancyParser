@@ -269,7 +269,22 @@ def collect_vacancies(
             )
             break
 
-        page_vacancies, has_next = parse_search_page(driver, page, config, on_status)
+        try:
+            page_vacancies, has_next = parse_search_page(
+                driver,
+                page,
+                config,
+                on_status,
+            )
+        except WebDriverException:
+            if should_stop is not None and should_stop():
+                emit_status(
+                    "Остановка поиска во время загрузки страницы.",
+                    on_status,
+                )
+                break
+            raise
+
         for vacancy in page_vacancies:
             if should_stop is not None and should_stop():
                 emit_status(
@@ -277,7 +292,17 @@ def collect_vacancies(
                 )
                 break
 
-            enriched = parse_vacancy_details(driver, vacancy, config, on_status)
+            try:
+                enriched = parse_vacancy_details(driver, vacancy, config, on_status)
+            except WebDriverException:
+                if should_stop is not None and should_stop():
+                    emit_status(
+                        "Остановка поиска во время обработки вакансии.",
+                        on_status,
+                    )
+                    break
+                raise
+
             vacancies.append(enriched)
 
             if should_stop is not None and should_stop():

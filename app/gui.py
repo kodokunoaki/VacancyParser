@@ -319,6 +319,9 @@ class ParserApp:
                 )
             )
         except Exception:
+            if self.stop_requested.is_set():
+                self.events.put(("stopped", "Остановлено: вакансии не сохранены."))
+                return
             self.events.put(("error", traceback.format_exc()))
         finally:
             if driver is not None:

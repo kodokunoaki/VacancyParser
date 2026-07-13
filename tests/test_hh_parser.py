@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 
 from app.core.config import Settings
 from app.core.utils import clean_url, first_text
@@ -346,5 +346,44 @@ def test_collect_vacancies_stops_after_current_vacancy(
     )
 
     assert vacancies == [first]
+    parse_page_mock.assert_called_once()
+    parse_details_mock.assert_called_once()
+
+
+@patch("app.hh_parser.parse_search_page")
+def test_collect_vacancies_handles_webdriver_error_during_stop(
+    parse_page_mock: Mock,
+) -> None:
+    parse_page_mock.side_effect = WebDriverException("connection closed")
+    stop_checks = [False, True]
+
+    vacancies = collect_vacancies(
+        driver=Mock(),
+        config=Settings(max_pages=3),
+        should_stop=lambda: stop_checks.pop(0) if stop_checks else True,
+    )
+
+    assert not vacancies
+    parse_page_mock.assert_called_once()
+
+
+@patch("app.hh_parser.parse_search_page")
+@patch("app.hh_parser.parse_vacancy_details")
+def test_collect_vacancies_handles_webdriver_error_after_stop_request(
+    parse_details_mock: Mock,
+    parse_page_mock: Mock,
+) -> None:
+    first = Vacancy(title="Python", company="ООО Ромашка", url="https://hh.ru/1")
+    parse_page_mock.return_value = ([first], True)
+    parse_details_mock.side_effect = WebDriverException("connection closed")
+    stop_checks = [False, False, True]
+
+    vacancies = collect_vacancies(
+        driver=Mock(),
+        config=Settings(max_pages=3),
+        should_stop=lambda: stop_checks.pop(0) if stop_checks else True,
+    )
+
+    assert not vacancies
     parse_page_mock.assert_called_once()
     parse_details_mock.assert_called_once()

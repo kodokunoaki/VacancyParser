@@ -7,7 +7,7 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for package_name in ("pydantic", "pydantic_settings", "selenium"):
+for package_name in ("customtkinter", "pydantic", "pydantic_settings", "selenium"):
     package_datas, package_binaries, package_hiddenimports = collect_all(package_name)
     datas += package_datas
     binaries += package_binaries

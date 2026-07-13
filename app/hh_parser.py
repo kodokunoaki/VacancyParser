@@ -1,10 +1,16 @@
 import csv
 import random
+import subprocess
+import sys
 import time
 from collections.abc import Callable
 from urllib.parse import urlencode
 
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
@@ -37,12 +43,26 @@ COMPANY_SELECTORS = (
 DESCRIPTION_SELECTORS = ("[data-qa='vacancy-description']",)
 SKILL_SELECTORS = ("[data-qa='skills-element']",)
 StatusCallback = Callable[[str], None]
+StopCallback = Callable[[], bool]
 
 
 def emit_status(message: str, on_status: StatusCallback | None = None) -> None:
     print(message)
     if on_status is not None:
         on_status(message)
+
+
+def sleep_with_stop(seconds: float, should_stop: StopCallback | None = None) -> None:
+    deadline = time.monotonic() + seconds
+    while True:
+        if should_stop is not None and should_stop():
+            return
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+
+        time.sleep(min(0.2, remaining))
 
 
 def build_search_url(page: int, config: Settings = settings) -> str:
@@ -68,6 +88,9 @@ def build_driver(config: Settings = settings) -> ChromeDriver:
     options.page_load_strategy = config.page_load_strategy
     if config.headless:
         options.add_argument("--headless=new")
+        if config.hide_headless_browser_window:
+            options.add_argument("--start-minimized")
+            options.add_argument("--window-position=-32000,-32000")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
@@ -86,10 +109,32 @@ def build_driver(config: Settings = settings) -> ChromeDriver:
         )
     options.add_argument(f"user-agent={config.user_agent}")
 
-    if config.chromedriver_path:
-        service = Service(config.chromedriver_path)
-        return ChromeDriver(service=service, options=options)
-    return ChromeDriver(options=options)
+    if config.chromedriver_path or sys.platform == "win32":
+        service_kwargs = {}
+        if sys.platform == "win32":
+            service_kwargs["creation_flags"] = getattr(
+                subprocess,
+                "CREATE_NO_WINDOW",
+                0,
+            )
+
+        service = Service(config.chromedriver_path, **service_kwargs)
+        driver = ChromeDriver(service=service, options=options)
+    else:
+        driver = ChromeDriver(options=options)
+
+    hide_browser_window(driver, config)
+    return driver
+
+
+def hide_browser_window(driver: ChromeDriver, config: Settings = settings) -> None:
+    if not config.headless or not config.hide_headless_browser_window:
+        return
+
+    try:
+        driver.minimize_window()
+    except WebDriverException:
+        return
 
 
 def parse_card(card: SearchableElement) -> Vacancy:
@@ -214,19 +259,66 @@ def collect_vacancies(
     driver: ChromeDriver,
     config: Settings = settings,
     on_status: StatusCallback | None = None,
+    should_stop: StopCallback | None = None,
 ) -> list[Vacancy]:
     vacancies: list[Vacancy] = []
     for page in range(config.max_pages):
-        page_vacancies, has_next = parse_search_page(driver, page, config, on_status)
+        if should_stop is not None and should_stop():
+            emit_status(
+                "Остановка поиска перед загрузкой следующей страницы.", on_status
+            )
+            break
+
+        try:
+            page_vacancies, has_next = parse_search_page(
+                driver,
+                page,
+                config,
+                on_status,
+            )
+        except WebDriverException:
+            if should_stop is not None and should_stop():
+                emit_status(
+                    "Остановка поиска во время загрузки страницы.",
+                    on_status,
+                )
+                break
+            raise
+
         for vacancy in page_vacancies:
-            enriched = parse_vacancy_details(driver, vacancy, config, on_status)
+            if should_stop is not None and should_stop():
+                emit_status(
+                    "Остановка поиска перед обработкой следующей вакансии.", on_status
+                )
+                break
+
+            try:
+                enriched = parse_vacancy_details(driver, vacancy, config, on_status)
+            except WebDriverException:
+                if should_stop is not None and should_stop():
+                    emit_status(
+                        "Остановка поиска во время обработки вакансии.",
+                        on_status,
+                    )
+                    break
+                raise
+
             vacancies.append(enriched)
+
+            if should_stop is not None and should_stop():
+                emit_status(
+                    "Остановка поиска после обработки текущей вакансии.", on_status
+                )
+                break
 
             delay = random.uniform(config.delay_min, config.delay_max)
             emit_status(
                 f"  Пауза перед следующей вакансией: {delay:.1f} сек.", on_status
             )
-            time.sleep(delay)
+            sleep_with_stop(delay, should_stop)
+
+        if should_stop is not None and should_stop():
+            break
 
         if not has_next:
             emit_status(
@@ -237,7 +329,7 @@ def collect_vacancies(
 
         delay = random.uniform(config.delay_min, config.delay_max)
         emit_status(f"  Пауза перед следующей страницей: {delay:.1f} сек.", on_status)
-        time.sleep(delay)
+        sleep_with_stop(delay, should_stop)
     return vacancies
 
 

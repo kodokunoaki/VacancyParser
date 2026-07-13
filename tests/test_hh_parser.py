@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 
 from app.core.config import Settings
 from app.core.utils import clean_url, first_text
@@ -12,6 +12,7 @@ from app.gui_config import (
 from app.hh_parser import (
     build_driver,
     build_search_url,
+    collect_vacancies,
     find_search_cards,
     parse_card,
     parse_vacancy_details,
@@ -97,6 +98,20 @@ def test_build_gui_config_uses_form_values() -> None:
     assert config.max_pages == 3
     assert config.output_file == "python_jobs.csv"
     assert config.items_on_page == 50
+    assert config.headless is True
+
+
+def test_build_gui_config_can_keep_visible_browser_when_configured() -> None:
+    config = build_gui_config(
+        query="Python developer",
+        salary_text="200000",
+        max_pages_text="3",
+        output_file_text="python_jobs",
+        items_on_page_text="50",
+        base_settings=Settings(headless=False, gui_force_headless=False),
+    )
+
+    assert config.headless is False
 
 
 def test_build_gui_config_rejects_invalid_items_on_page() -> None:
@@ -126,6 +141,34 @@ def test_build_driver_uses_selenium_manager_without_chromedriver_path(
     _, kwargs = chrome_mock.call_args
     assert "options" in kwargs
     assert "service" not in kwargs
+
+
+@patch("app.hh_parser.ChromeDriver")
+def test_build_driver_hides_headless_browser_window(chrome_mock: Mock) -> None:
+    config = Settings(headless=True, hide_headless_browser_window=True)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    options = kwargs["options"]
+    assert "--headless=new" in options.arguments
+    assert "--start-minimized" in options.arguments
+    assert "--window-position=-32000,-32000" in options.arguments
+    chrome_mock.return_value.minimize_window.assert_called_once_with()
+
+
+@patch("app.hh_parser.ChromeDriver")
+def test_build_driver_keeps_visible_browser_when_configured(chrome_mock: Mock) -> None:
+    config = Settings(headless=False, hide_headless_browser_window=True)
+
+    build_driver(config)
+
+    _, kwargs = chrome_mock.call_args
+    options = kwargs["options"]
+    assert "--headless=new" not in options.arguments
+    assert "--start-minimized" not in options.arguments
+    assert "--window-position=-32000,-32000" not in options.arguments
+    chrome_mock.return_value.minimize_window.assert_not_called()
 
 
 @patch("app.hh_parser.ChromeDriver")
@@ -166,6 +209,23 @@ def test_build_driver_uses_service_with_chromedriver_path(
     _, kwargs = chrome_mock.call_args
     assert kwargs["service"] == service_mock.return_value
     assert "options" in kwargs
+
+
+@patch("app.hh_parser.sys.platform", "win32")
+@patch("app.hh_parser.subprocess.CREATE_NO_WINDOW", 134217728, create=True)
+@patch("app.hh_parser.ChromeDriver")
+@patch("app.hh_parser.Service")
+def test_build_driver_hides_chromedriver_service_window_on_windows(
+    service_mock: Mock,
+    chrome_mock: Mock,
+) -> None:
+    config = Settings(chromedriver_path=None)
+
+    build_driver(config)
+
+    service_mock.assert_called_once_with(None, creation_flags=134217728)
+    _, kwargs = chrome_mock.call_args
+    assert kwargs["service"] == service_mock.return_value
 
 
 def test_parse_card_returns_vacancy_from_search_card() -> None:
@@ -260,3 +320,70 @@ def test_parse_vacancy_details_enriches_vacancy(wait_mock: Mock) -> None:
     driver.get.assert_called_once_with("https://hh.ru/1")
     assert enriched.description == "Делать маркетинг и аналитику"
     assert enriched.key_skills == ["SEO", "Аналитика"]
+
+
+@patch("app.hh_parser.parse_search_page")
+@patch("app.hh_parser.parse_vacancy_details")
+def test_collect_vacancies_stops_after_current_vacancy(
+    parse_details_mock: Mock,
+    parse_page_mock: Mock,
+) -> None:
+    processed: list[Vacancy] = []
+    first = Vacancy(title="Python", company="ООО Ромашка", url="https://hh.ru/1")
+    second = Vacancy(title="Django", company="ООО Ромашка", url="https://hh.ru/2")
+    parse_page_mock.return_value = ([first, second], True)
+
+    def parse_details(driver: Mock, vacancy: Vacancy, *args: object) -> Vacancy:
+        processed.append(vacancy)
+        return vacancy
+
+    parse_details_mock.side_effect = parse_details
+
+    vacancies = collect_vacancies(
+        driver=Mock(),
+        config=Settings(max_pages=3),
+        should_stop=lambda: len(processed) >= 1,
+    )
+
+    assert vacancies == [first]
+    parse_page_mock.assert_called_once()
+    parse_details_mock.assert_called_once()
+
+
+@patch("app.hh_parser.parse_search_page")
+def test_collect_vacancies_handles_webdriver_error_during_stop(
+    parse_page_mock: Mock,
+) -> None:
+    parse_page_mock.side_effect = WebDriverException("connection closed")
+    stop_checks = [False, True]
+
+    vacancies = collect_vacancies(
+        driver=Mock(),
+        config=Settings(max_pages=3),
+        should_stop=lambda: stop_checks.pop(0) if stop_checks else True,
+    )
+
+    assert not vacancies
+    parse_page_mock.assert_called_once()
+
+
+@patch("app.hh_parser.parse_search_page")
+@patch("app.hh_parser.parse_vacancy_details")
+def test_collect_vacancies_handles_webdriver_error_after_stop_request(
+    parse_details_mock: Mock,
+    parse_page_mock: Mock,
+) -> None:
+    first = Vacancy(title="Python", company="ООО Ромашка", url="https://hh.ru/1")
+    parse_page_mock.return_value = ([first], True)
+    parse_details_mock.side_effect = WebDriverException("connection closed")
+    stop_checks = [False, False, True]
+
+    vacancies = collect_vacancies(
+        driver=Mock(),
+        config=Settings(max_pages=3),
+        should_stop=lambda: stop_checks.pop(0) if stop_checks else True,
+    )
+
+    assert not vacancies
+    parse_page_mock.assert_called_once()
+    parse_details_mock.assert_called_once()

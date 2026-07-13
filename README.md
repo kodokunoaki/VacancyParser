@@ -1,10 +1,10 @@
-# HH Parser
+# HH Vacancy Parser
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Deps: pip](https://img.shields.io/badge/deps-pip-3775A9)
 ![Format: ruff](https://img.shields.io/badge/format-ruff-46A758)
-[![Lint](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml)
-[![Tests](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml)
+[![Lint](https://github.com/kodokunoaki/VacancyParser/actions/workflows/lint.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/lint.yml)
+[![Tests](https://github.com/kodokunoaki/VacancyParser/actions/workflows/tests.yml/badge.svg)](https://github.com/kodokunoaki/HHParser/actions/workflows/tests.yml)
  
 Парсер вакансий с [hh.ru](https://hh.ru) на Python с использованием Selenium.  
 Собирает вакансии по заданным параметрам поиска, переходит в каждую карточку
@@ -19,10 +19,14 @@ HHParser/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py               # CLI-точка входа
-│   ├── gui.py                # Tkinter GUI
+│   ├── gui.py                # CustomTkinter GUI
 │   ├── gui_config.py         # Подготовка настроек из формы GUI
+│   ├── gui_controller.py     # Фоновый запуск парсера и типизированные события
 │   ├── hh_parser.py          # Логика сбора и обогащения вакансий
 │   ├── schemas.py            # Pydantic-схемы данных
+│   ├── ui/
+│   │   ├── components.py    # Переиспользуемые поля и элементы формы
+│   │   └── theme.py         # Палитра, типографика и размеры UI
 │   └── core/
 │       ├── __init__.py
 │       ├── config.py         # Настройки приложения (pydantic-settings)
@@ -48,6 +52,7 @@ HHParser/
 - Python 3.10+
 - Tkinter. На Windows обычно входит в Python. На Linux может понадобиться
   системный пакет `python3-tk`.
+- CustomTkinter для современного desktop-интерфейса.
 - Google Chrome или Chromium
 - ChromeDriver не нужно указывать вручную, если Selenium Manager может подобрать
   его автоматически. При необходимости путь можно задать через `CHROMEDRIVER_PATH`.
@@ -81,15 +86,36 @@ cp .env.example .env
 python -m app.gui
 ```
 
-В окне приложения доступны поля:
+## Интерфейс
+
+GUI использует сдержанную тёмную тему на CustomTkinter. Параметры
+собраны в левой колонке, а прогресс, журнал и его пустое состояние — в основной
+рабочей области. Статус всегда виден в нижней строке.
+
+![VacancyParcer interface](docs/screenshots/UI.png)
+
+В окне приложения доступны:
 
 - поисковый запрос;
 - зарплата от, в рублях;
 - максимальное количество страниц;
 - имя файла результата без `.csv`;
 - количество вакансий на странице: 20, 50 или 100;
-- кнопка запуска поиска;
-- текущий статус и лог выполнения.
+- кнопка запуска и мягкой остановки поиска;
+- текущий статус, индикатор прогресса и лог выполнения;
+- очистка журнала отдельной кнопкой.
+
+Виджеты не запускают Selenium напрямую: фоновая работа и мягкая остановка
+изолированы в `ParserController`, а GUI получает типизированные события.
+
+Во время поиска кнопка меняется на «Остановить поиск». Приложение завершает
+текущую операцию, закрывает браузер и сохраняет частичный CSV, если вакансии уже
+были собраны.
+
+В GUI Chrome запускается в headless-режиме по умолчанию, чтобы окно браузера не
+перекрывало приложение. Если нужно видеть браузер, установите
+`GUI_FORCE_HEADLESS=false`, `HEADLESS=false` и
+`HIDE_HEADLESS_BROWSER_WINDOW=false`.
 
 ---
 
@@ -122,6 +148,8 @@ python -m app.main
 | `PAGE_TIMEOUT`   | `30`            | Таймаут ожидания элементов (с)        |
 | `SEARCH_CARDS_WAIT_TIMEOUT` | `5.0` | Короткое ожидание полной выдачи карточек после быстрой загрузки страницы |
 | `HEADLESS`       | `true`          | Запуск браузера без GUI               |
+| `GUI_FORCE_HEADLESS` | `true` | Принудительно запускать браузер без GUI при старте из desktop-интерфейса |
+| `HIDE_HEADLESS_BROWSER_WINDOW` | `true` | Сворачивать и уводить за экран окно Chrome, если headless-режим всё же создаёт видимое окно |
 | `CHROMEDRIVER_PATH` | пусто | Путь к ChromeDriver. Если пусто, Selenium подбирает драйвер автоматически |
 | `PAGE_LOAD_STRATEGY` | `eager` | Стратегия загрузки страниц Chrome: `normal`, `eager` или `none` |
 | `DISABLE_IMAGES` | `true`          | Отключать загрузку изображений в Chrome |
@@ -192,6 +220,7 @@ pylint app tests
 selenium>=4.20.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+customtkinter>=5.2.0
 pytest>=7.0.0
 ruff>=0.5.0
 pylint>=3.0.0

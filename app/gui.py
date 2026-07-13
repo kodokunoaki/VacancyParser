@@ -1,37 +1,38 @@
 import queue
-import threading
-import traceback
 import tkinter as tk
 from tkinter import messagebox
 
 import customtkinter as ctk
 
-from app.core.config import Settings, settings
+from app.core.config import settings
 from app.gui_config import (
     ITEMS_ON_PAGE_OPTIONS,
     build_gui_config,
     output_name_without_csv,
 )
-from app.hh_parser import build_driver, collect_vacancies, save_to_csv
-
-
-WINDOW_BG = "#0b1020"
-PANEL_BG = "#121a2e"
-PANEL_SOFT_BG = "#17213a"
-FIELD_BG = "#0f1729"
-BORDER_COLOR = "#2b3958"
-TEXT_COLOR = "#f5f7fb"
-MUTED_TEXT_COLOR = "#97a3ba"
-ACCENT_COLOR = "#5eead4"
-ACCENT_HOVER_COLOR = "#38cfc0"
+from app.gui_controller import ParserController
+from app.schemas import ParserEvent, ParserEventType
+from app.ui.components import LabeledComboBox, LabeledEntry
+from app.ui.theme import (
+    COLORS,
+    CONTROL_RADIUS,
+    FONT_FAMILY,
+    MONOSPACE_FONT_FAMILY,
+    PANEL_RADIUS,
+    SIDEBAR_WIDTH,
+    WINDOW_MIN_HEIGHT,
+    WINDOW_MIN_WIDTH,
+    WINDOW_SIZE,
+)
 
 
 class ParserApp:
     def __init__(self, root: ctk.CTk) -> None:
         self.root = root
-        self.events: queue.Queue[tuple[str, str]] = queue.Queue()
-        self.worker: threading.Thread | None = None
-        self.stop_requested = threading.Event()
+        self.events: queue.Queue[ParserEvent] = queue.Queue()
+        self.controller = ParserController(self.events)
+        self._event_job: str | None = None
+        self._has_log_content = False
 
         self.search_query = tk.StringVar(value=settings.search_query)
         self.salary = tk.StringVar(value=str(settings.salary))
@@ -40,222 +41,316 @@ class ParserApp:
             value=output_name_without_csv(settings.output_file)
         )
         self.items_on_page = tk.StringVar(value=str(settings.items_on_page))
-        self.status = tk.StringVar(value="Готов к поиску")
+        self.status = tk.StringVar(value="Готово к запуску")
+        self.empty_title = tk.StringVar(value="Поиск ещё не запускался")
+        self.empty_description = tk.StringVar(
+            value="Здесь появится прогресс и журнал операций"
+        )
 
-        self.root.title("HH Parser")
-        self.root.geometry("960x640")
-        self.root.minsize(780, 460)
-        self.root.configure(fg_color=WINDOW_BG)
-
+        self._configure_window()
         self._build_layout()
-        self.root.after(100, self._process_events)
+        self._set_running(False)
+        self._event_job = self.root.after(100, self._process_events)
+
+    def _configure_window(self) -> None:
+        self.root.title("HH Parser")
+        self.root.geometry(WINDOW_SIZE)
+        self.root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+        self.root.configure(fg_color=COLORS.window)
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def _build_layout(self) -> None:
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
 
-        shell = ctk.CTkFrame(
-            self.root,
-            fg_color=WINDOW_BG,
-            corner_radius=0,
-        )
-        shell.grid(row=0, column=0, sticky="nsew", padx=22, pady=22)
-        shell.columnconfigure(0, weight=0)
-        shell.columnconfigure(1, weight=1)
-        shell.rowconfigure(1, weight=1)
+        self._build_header()
 
-        header = ctk.CTkFrame(
-            shell,
-            fg_color=PANEL_BG,
-            border_color=BORDER_COLOR,
+        workspace = ctk.CTkFrame(self.root, fg_color="transparent")
+        workspace.grid(row=1, column=0, sticky="nsew", padx=20, pady=(8, 16))
+        workspace.columnconfigure(0, minsize=SIDEBAR_WIDTH)
+        workspace.columnconfigure(1, weight=1)
+        workspace.rowconfigure(0, weight=1)
+
+        self._build_settings_panel(workspace)
+        self._build_activity_panel(workspace)
+        self._build_status_bar()
+
+    def _build_header(self) -> None:
+        header = ctk.CTkFrame(self.root, fg_color="transparent", height=82)
+        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 4))
+        header.grid_propagate(False)
+        header.columnconfigure(1, weight=1)
+
+        mark = ctk.CTkFrame(
+            header,
+            width=54,
+            height=54,
+            fg_color="transparent",
+            border_color=COLORS.accent,
             border_width=1,
-            corner_radius=22,
+            corner_radius=12,
         )
-        header.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 16))
-        header.columnconfigure(0, weight=1)
+        mark.grid(row=0, column=0, rowspan=2, sticky="w", padx=(0, 15), pady=6)
+        mark.grid_propagate(False)
+        ctk.CTkLabel(
+            mark,
+            text="HH",
+            text_color=COLORS.accent,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=21, weight="bold"),
+        ).place(relx=0.5, rely=0.5, anchor="center")
 
         ctk.CTkLabel(
             header,
             text="HH Parser",
-            font=ctk.CTkFont(size=28, weight="bold"),
-            text_color=TEXT_COLOR,
-        ).grid(row=0, column=0, sticky="w", padx=22, pady=(18, 2))
+            anchor="w",
+            text_color=COLORS.text,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=24, weight="bold"),
+        ).grid(row=0, column=1, sticky="sw", pady=(7, 0))
         ctk.CTkLabel(
             header,
-            text="Поиск, сбор и экспорт вакансий hh.ru в CSV",
-            font=ctk.CTkFont(size=14),
-            text_color=MUTED_TEXT_COLOR,
-        ).grid(row=1, column=0, sticky="w", padx=22, pady=(0, 18))
+            text="Сбор вакансий hh.ru в CSV",
+            anchor="w",
+            text_color=COLORS.text_muted,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+        ).grid(row=1, column=1, sticky="nw", pady=(1, 7))
 
-        form = ctk.CTkFrame(
-            shell,
-            width=330,
-            fg_color=PANEL_BG,
-            border_color=BORDER_COLOR,
+    def _panel(self, master: ctk.CTkFrame) -> ctk.CTkFrame:
+        return ctk.CTkFrame(
+            master,
+            fg_color=COLORS.surface,
+            border_color=COLORS.border,
             border_width=1,
-            corner_radius=22,
+            corner_radius=PANEL_RADIUS,
         )
-        form.grid(row=1, column=0, sticky="nsew", padx=(0, 16))
-        form.grid_propagate(False)
-        form.columnconfigure(0, weight=1)
-        form.rowconfigure(1, weight=1)
+
+    def _build_settings_panel(self, workspace: ctk.CTkFrame) -> None:
+        panel = self._panel(workspace)
+        panel.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(6, weight=1)
 
         ctk.CTkLabel(
-            form,
-            text="Параметры",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color=TEXT_COLOR,
-        ).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 14))
+            panel,
+            text="Параметры поиска",
+            anchor="w",
+            text_color=COLORS.text,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
+        ).grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 16))
 
-        form_content = ctk.CTkScrollableFrame(
-            form,
-            fg_color=PANEL_BG,
-            scrollbar_button_color=BORDER_COLOR,
-            scrollbar_button_hover_color=ACCENT_HOVER_COLOR,
-            corner_radius=0,
+        self.query_field = LabeledEntry(
+            panel,
+            "Поисковый запрос",
+            self.search_query,
+            placeholder="Например: Python-разработчик",
         )
-        form_content.grid(row=1, column=0, sticky="nsew", padx=0, pady=(0, 10))
-        form_content.columnconfigure(0, weight=1)
+        self.query_field.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 13))
 
-        self._add_entry(
-            form_content,
-            row=1,
-            label="Поисковый запрос",
-            variable=self.search_query,
-        )
-        self._add_entry(
-            form_content,
-            row=2,
-            label="Зарплата от, руб.",
-            variable=self.salary,
-        )
-        self._add_entry(
-            form_content,
-            row=3,
-            label="Страниц максимум",
-            variable=self.max_pages,
-        )
-        self._add_entry(
-            form_content,
-            row=4,
-            label="Имя файла",
-            variable=self.output_file,
-        )
+        numeric_row = ctk.CTkFrame(panel, fg_color="transparent")
+        numeric_row.grid(row=2, column=0, sticky="ew", padx=22, pady=(0, 13))
+        numeric_row.columnconfigure((0, 1), weight=1)
 
-        ctk.CTkLabel(
-            form_content,
-            text="Вакансий на странице",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color=MUTED_TEXT_COLOR,
-        ).grid(row=9, column=0, sticky="w", padx=20, pady=(6, 6))
-        items_combo = ctk.CTkComboBox(
-            form_content,
-            values=list(ITEMS_ON_PAGE_OPTIONS),
-            variable=self.items_on_page,
-            state="readonly",
-            fg_color=FIELD_BG,
-            border_color=BORDER_COLOR,
-            button_color=PANEL_SOFT_BG,
-            button_hover_color=BORDER_COLOR,
-            dropdown_fg_color=PANEL_BG,
-            dropdown_hover_color=PANEL_SOFT_BG,
-            dropdown_text_color=TEXT_COLOR,
-            text_color=TEXT_COLOR,
-            corner_radius=12,
-            height=42,
+        self.salary_field = LabeledEntry(
+            numeric_row,
+            "Зарплата от",
+            self.salary,
+            placeholder="100000",
+            suffix="₽",
         )
-        items_combo.grid(row=10, column=0, sticky="ew", padx=20, pady=(0, 18))
+        self.salary_field.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self.pages_field = LabeledEntry(
+            numeric_row,
+            "Максимум страниц",
+            self.max_pages,
+            placeholder="5",
+        )
+        self.pages_field.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+        self.items_field = LabeledComboBox(
+            panel,
+            "Вакансий на странице",
+            self.items_on_page,
+            ITEMS_ON_PAGE_OPTIONS,
+        )
+        self.items_field.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 13))
+
+        self.output_field = LabeledEntry(
+            panel,
+            "Файл результата",
+            self.output_file,
+            placeholder="vacancies",
+            suffix=".csv",
+        )
+        self.output_field.grid(row=4, column=0, sticky="ew", padx=22)
 
         self.start_button = ctk.CTkButton(
-            form_content,
+            panel,
             text="Начать поиск",
-            command=self.start_search,
-            fg_color=ACCENT_COLOR,
-            hover_color=ACCENT_HOVER_COLOR,
-            text_color="#06111f",
-            font=ctk.CTkFont(size=15, weight="bold"),
-            corner_radius=14,
-            height=46,
+            command=self._handle_primary_action,
+            height=48,
+            fg_color=COLORS.accent,
+            hover_color=COLORS.accent_hover,
+            text_color=COLORS.text,
+            corner_radius=CONTROL_RADIUS,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
         )
-        self.start_button.grid(row=11, column=0, sticky="ew", padx=20, pady=(4, 20))
+        self.start_button.grid(
+            row=7,
+            column=0,
+            sticky="sew",
+            padx=22,
+            pady=(20, 22),
+        )
 
-        log_panel = ctk.CTkFrame(
-            shell,
-            fg_color=PANEL_BG,
-            border_color=BORDER_COLOR,
-            border_width=1,
-            corner_radius=22,
+        self.form_fields = (
+            self.query_field,
+            self.salary_field,
+            self.pages_field,
+            self.items_field,
+            self.output_field,
         )
-        log_panel.grid(row=1, column=1, sticky="nsew")
-        log_panel.columnconfigure(0, weight=1)
-        log_panel.rowconfigure(1, weight=1)
+
+    def _build_activity_panel(self, workspace: ctk.CTkFrame) -> None:
+        panel = self._panel(workspace)
+        panel.grid(row=0, column=1, sticky="nsew")
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+
+        activity_header = ctk.CTkFrame(panel, fg_color="transparent")
+        activity_header.grid(row=0, column=0, sticky="ew", padx=22, pady=(18, 12))
+        activity_header.columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            log_panel,
-            text="Журнал выполнения",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color=TEXT_COLOR,
-        ).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 12))
+            activity_header,
+            text="Ход выполнения",
+            anchor="w",
+            text_color=COLORS.text,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
+        ).grid(row=0, column=0, sticky="w")
+        self.clear_button = ctk.CTkButton(
+            activity_header,
+            text="Очистить журнал",
+            command=self._clear_log,
+            width=142,
+            height=34,
+            fg_color="transparent",
+            hover_color=COLORS.surface_hover,
+            border_color=COLORS.border,
+            border_width=1,
+            text_color=COLORS.text_muted,
+            corner_radius=CONTROL_RADIUS,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            state="disabled",
+        )
+        self.clear_button.grid(row=0, column=1, sticky="e")
+
+        self.log_container = ctk.CTkFrame(panel, fg_color="transparent")
+        self.log_container.grid(row=1, column=0, sticky="nsew", padx=22)
+        self.log_container.columnconfigure(0, weight=1)
+        self.log_container.rowconfigure(0, weight=1)
 
         self.log = ctk.CTkTextbox(
-            log_panel,
+            self.log_container,
             wrap="word",
-            fg_color=FIELD_BG,
-            border_color=BORDER_COLOR,
+            fg_color=COLORS.field,
+            border_color=COLORS.border,
             border_width=1,
-            text_color=TEXT_COLOR,
-            corner_radius=16,
-            font=ctk.CTkFont(family="Consolas", size=13),
+            text_color=COLORS.text_muted,
+            scrollbar_button_color=COLORS.border,
+            scrollbar_button_hover_color=COLORS.border_focus,
+            corner_radius=CONTROL_RADIUS,
+            font=ctk.CTkFont(family=MONOSPACE_FONT_FAMILY, size=12),
+            spacing1=3,
+            spacing3=3,
         )
-        self.log.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 16))
+        self.log.grid(row=0, column=0, sticky="nsew")
         self.log.configure(state="disabled")
 
-        status_bar = ctk.CTkFrame(
-            log_panel,
-            fg_color=PANEL_SOFT_BG,
-            corner_radius=16,
+        self.empty_state = ctk.CTkFrame(
+            self.log_container,
+            fg_color=COLORS.field,
+            border_color=COLORS.border,
+            border_width=1,
+            corner_radius=CONTROL_RADIUS,
         )
-        status_bar.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 20))
-        status_bar.columnconfigure(0, weight=1)
+        self.empty_state.grid(row=0, column=0, sticky="nsew")
+        self.empty_state.columnconfigure(0, weight=1)
+        self.empty_state.rowconfigure((0, 3), weight=1)
+        empty_icon = ctk.CTkFrame(
+            self.empty_state,
+            width=58,
+            height=58,
+            fg_color="transparent",
+            border_color=COLORS.border_focus,
+            border_width=1,
+            corner_radius=14,
+        )
+        empty_icon.grid(row=1, column=0, pady=(0, 14))
+        empty_icon.grid_propagate(False)
+        ctk.CTkLabel(
+            empty_icon,
+            text="CSV",
+            text_color=COLORS.text_faint,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+        ).place(relx=0.5, rely=0.5, anchor="center")
+        ctk.CTkLabel(
+            self.empty_state,
+            textvariable=self.empty_title,
+            text_color=COLORS.text,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"),
+        ).grid(row=2, column=0)
+        ctk.CTkLabel(
+            self.empty_state,
+            textvariable=self.empty_description,
+            text_color=COLORS.text_faint,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+        ).grid(row=3, column=0, sticky="n", pady=(8, 0))
+
+        self.progress = ctk.CTkProgressBar(
+            panel,
+            height=5,
+            corner_radius=3,
+            fg_color=COLORS.field,
+            progress_color=COLORS.accent,
+            mode="indeterminate",
+        )
+        self.progress.grid(row=2, column=0, sticky="ew", padx=22, pady=(15, 20))
+        self.progress.set(0)
+
+    def _build_status_bar(self) -> None:
+        status_bar = ctk.CTkFrame(
+            self.root,
+            height=42,
+            fg_color=COLORS.surface,
+            corner_radius=0,
+            border_width=0,
+        )
+        status_bar.grid(row=2, column=0, sticky="ew")
+        status_bar.grid_propagate(False)
+        status_bar.columnconfigure(1, weight=1)
+
+        self.status_dot = ctk.CTkLabel(
+            status_bar,
+            text="●",
+            width=18,
+            text_color=COLORS.success,
+            font=ctk.CTkFont(size=17),
+        )
+        self.status_dot.grid(row=0, column=0, sticky="e", padx=(20, 5), pady=9)
         ctk.CTkLabel(
             status_bar,
             textvariable=self.status,
             anchor="w",
-            text_color=TEXT_COLOR,
-            font=ctk.CTkFont(size=13),
-        ).grid(row=0, column=0, sticky="ew", padx=14, pady=10)
+            text_color=COLORS.text_muted,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+        ).grid(row=0, column=1, sticky="ew", padx=(0, 20), pady=9)
 
-    def _add_entry(
-        self,
-        parent: ctk.CTkFrame,
-        row: int,
-        label: str,
-        variable: tk.StringVar,
-    ) -> ctk.CTkEntry:
-        ctk.CTkLabel(
-            parent,
-            text=label,
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color=MUTED_TEXT_COLOR,
-        ).grid(row=row * 2 - 1, column=0, sticky="w", padx=20, pady=(0, 6))
-        entry = ctk.CTkEntry(
-            parent,
-            textvariable=variable,
-            fg_color=FIELD_BG,
-            border_color=BORDER_COLOR,
-            text_color=TEXT_COLOR,
-            placeholder_text_color=MUTED_TEXT_COLOR,
-            corner_radius=12,
-            height=42,
-        )
-        entry.grid(row=row * 2, column=0, sticky="ew", padx=20, pady=(0, 14))
-        return entry
-
-    def start_search(self) -> None:
-        if self.worker is not None and self.worker.is_alive():
-            self.request_stop()
+    def _handle_primary_action(self) -> None:
+        if self.controller.is_running:
+            self._request_stop()
             return
+        self._start_search()
 
+    def _start_search(self) -> None:
         try:
             config = build_gui_config(
                 query=self.search_query.get(),
@@ -265,106 +360,62 @@ class ParserApp:
                 items_on_page_text=self.items_on_page.get(),
             )
         except ValueError as exc:
-            messagebox.showerror("Ошибка", str(exc), parent=self.root)
+            messagebox.showerror("Проверьте параметры", str(exc), parent=self.root)
             return
 
         self._clear_log()
-        self.stop_requested.clear()
         self._set_running(True)
-        self._add_status("Запускаю браузер...")
+        self._add_status("Запускаю браузер…")
+        if not self.controller.start(config):
+            self._set_running(True)
 
-        self.worker = threading.Thread(
-            target=self._run_parser,
-            args=(config,),
-            daemon=True,
-        )
-        self.worker.start()
-
-    def _run_parser(self, config: Settings) -> None:
-        driver = None
-        try:
-            driver = build_driver(config)
-            vacancies = collect_vacancies(
-                driver,
-                config,
-                self._queue_status,
-                self.stop_requested.is_set,
-            )
-            if self.stop_requested.is_set():
-                if vacancies:
-                    save_to_csv(vacancies, config.output_file, self._queue_status)
-                    self.events.put(
-                        (
-                            "stopped",
-                            (
-                                "Остановлено: сохранено "
-                                f"{len(vacancies)} вакансий в {config.output_file}"
-                            ),
-                        )
-                    )
-                    return
-
-                self.events.put(("stopped", "Остановлено: вакансии не сохранены."))
-                return
-
-            if not vacancies:
-                self.events.put(("done", "Вакансии не найдены."))
-                return
-
-            save_to_csv(vacancies, config.output_file, self._queue_status)
-            self.events.put(
-                (
-                    "done",
-                    f"Готово: сохранено {len(vacancies)} вакансий в {config.output_file}",
-                )
-            )
-        except Exception:
-            if self.stop_requested.is_set():
-                self.events.put(("stopped", "Остановлено: вакансии не сохранены."))
-                return
-            self.events.put(("error", traceback.format_exc()))
-        finally:
-            if driver is not None:
-                driver.quit()
-
-    def _queue_status(self, message: str) -> None:
-        self.events.put(("status", message))
-
-    def request_stop(self) -> None:
-        self.stop_requested.set()
-        self.status.set("Останавливаю поиск...")
-        self.start_button.configure(state="disabled", text="Останавливаю...")
-        self._add_status("Получена команда остановки. Завершаю текущую операцию...")
+    def _request_stop(self) -> None:
+        self.controller.request_stop()
+        self.status.set("Останавливаю поиск…")
+        self.status_dot.configure(text_color=COLORS.danger)
+        self.start_button.configure(state="disabled", text="Останавливаю…")
+        self._add_status("Получена команда остановки. Завершаю текущую операцию…")
 
     def _process_events(self) -> None:
         while True:
             try:
-                event, message = self.events.get_nowait()
+                event = self.events.get_nowait()
             except queue.Empty:
                 break
+            self._handle_event(event)
 
-            if event == "status":
-                self._add_status(message)
-            elif event == "done":
-                self._add_status(message)
-                self.status.set(message)
-                self._set_running(False)
-                messagebox.showinfo("Готово", message, parent=self.root)
-            elif event == "stopped":
-                self._add_status(message)
-                self.status.set(message)
-                self._set_running(False)
-                messagebox.showinfo("Остановлено", message, parent=self.root)
-            elif event == "error":
-                self._add_status(message)
-                self.status.set("Ошибка во время поиска")
-                self._set_running(False)
-                messagebox.showerror("Ошибка", message, parent=self.root)
+        self._event_job = self.root.after(100, self._process_events)
 
-        self.root.after(100, self._process_events)
+    def _handle_event(self, event: ParserEvent) -> None:
+        if event.kind is ParserEventType.STATUS:
+            self._add_status(event.message)
+            return
+
+        self._add_status(event.message)
+        self._set_running(False)
+
+        if event.kind is ParserEventType.DONE:
+            self.status.set(event.message)
+            messagebox.showinfo("Поиск завершён", event.message, parent=self.root)
+        elif event.kind is ParserEventType.STOPPED:
+            self.status.set(event.message)
+            messagebox.showinfo("Поиск остановлен", event.message, parent=self.root)
+        else:
+            self.status.set("Не удалось завершить поиск")
+            self.status_dot.configure(text_color=COLORS.danger)
+            messagebox.showerror(
+                "Ошибка поиска",
+                "Произошла ошибка. Подробности сохранены в журнале.",
+                parent=self.root,
+            )
 
     def _add_status(self, message: str) -> None:
-        self.status.set(message.strip() or "Работаю...")
+        clean_message = message.strip()
+        self.status.set(clean_message or "Выполняю поиск…")
+        if not self._has_log_content:
+            self.empty_state.grid_remove()
+            self._has_log_content = True
+            self.clear_button.configure(state="normal")
         self.log.configure(state="normal")
         self.log.insert("end", f"{message}\n")
         self.log.see("end")
@@ -374,28 +425,55 @@ class ParserApp:
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
+        self._has_log_content = False
+        self.empty_title.set("Журнал пуст")
+        self.empty_description.set("Новые события появятся здесь")
+        self.clear_button.configure(state="disabled")
+        self.empty_state.grid()
 
     def _set_running(self, is_running: bool) -> None:
+        for field in self.form_fields:
+            field.set_enabled(not is_running)
+
         if is_running:
+            self.progress.grid()
+            self.progress.start()
+            self.status_dot.configure(text_color=COLORS.accent)
             self.start_button.configure(
-                fg_color="#fb7185",
-                hover_color="#f43f5e",
                 state="normal",
                 text="Остановить поиск",
+                fg_color="transparent",
+                hover_color=COLORS.surface_hover,
+                border_color=COLORS.danger,
+                border_width=1,
+                text_color=COLORS.danger,
             )
             return
 
+        self.progress.stop()
+        self.progress.set(0)
+        self.progress.grid_remove()
+        self.status_dot.configure(text_color=COLORS.success)
         self.start_button.configure(
-            fg_color=ACCENT_COLOR,
-            hover_color=ACCENT_HOVER_COLOR,
             state="normal",
             text="Начать поиск",
+            fg_color=COLORS.accent,
+            hover_color=COLORS.accent_hover,
+            border_width=0,
+            text_color=COLORS.text,
         )
+
+    def close(self) -> None:
+        if self.controller.is_running:
+            self.controller.request_stop()
+        if self._event_job is not None:
+            self.root.after_cancel(self._event_job)
+            self._event_job = None
+        self.root.destroy()
 
 
 def main() -> None:
     ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("blue")
     root = ctk.CTk()
     ParserApp(root)
     root.mainloop()

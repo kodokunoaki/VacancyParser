@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 
@@ -11,3 +13,15 @@ class Vacancy(BaseModel):
     @property
     def key_skills_text(self) -> str:
         return ", ".join(self.key_skills) if self.key_skills else "—"
+
+
+class ParserEventType(str, Enum):
+    STATUS = "status"
+    DONE = "done"
+    STOPPED = "stopped"
+    ERROR = "error"
+
+
+class ParserEvent(BaseModel):
+    kind: ParserEventType
+    message: str
